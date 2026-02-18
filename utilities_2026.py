@@ -37,6 +37,16 @@ def warning(message, title='Warning'):
     tkinter.Tk().withdraw() # 
     tkinter.messagebox.showwarning(title, message)
 
+def epsg(prompt='EPSG code', title='GEO 2026'):
+    tkinter.Tk().withdraw()
+    epsg = tkinter.simpledialog.askinteger(
+        title=title, prompt=prompt
+    )
+
+    # TODO: check that the EPSG code is valid (return None)
+
+    return epsg
+
 
 def validate(expression):
     """Validate an expression to be processed with eval()"""
@@ -288,3 +298,27 @@ def output_file(formats=None, title='Select output file'):
         filename = filename + '.geojson'
     
     return filename
+
+def read_world_file(filename):
+    image_filename, image_extension = os.path.splitext(filename)
+
+    # Corresponding world file: png -> pgw
+    world_extension = image_extension[1] + image_extension[-1] + 'w'
+
+    world_filename = image_filename + '.' + world_extension
+
+    # print(world_filename)
+
+    try:
+        with open(world_filename, 'rt') as world_file: # world_file = the file object
+            records = world_file.readlines()
+
+            world = list(map(float, records))
+
+            if len(world) != 6:
+                world = None
+    
+    except:
+        world = None
+
+    return world

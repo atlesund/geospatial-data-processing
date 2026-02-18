@@ -8,7 +8,7 @@ import utilities_2026 as utilities
 class Raster():
     def __init__(self):
         self._filename = None
-        self._epsg = None
+        self._epsg = None # Identifies a coordinate reference system (CRS)
         self._photoimage = None # Tkinter image format
         self._world_file = None
 
@@ -31,7 +31,13 @@ class Raster():
     epsg = property(fget=_get_epsg, fset=_set_epsg) # Reference system
 
     def _get_shape(self):
-        pass
+        if self._photoimage is None:
+            return None
+        
+        rows = self._photoimage.height()
+        columns = self._photoimage.width()
+
+        return [rows, columns]
 
     shape = property(fget=_get_shape)
 
@@ -49,3 +55,5 @@ class Raster():
         self._filename = filename
 
         # World file world file world file world file world file world file world file world file world file
+        world_file = utilities.read_world_file(filename)
+        self._world_file = world_file

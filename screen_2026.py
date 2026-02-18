@@ -51,10 +51,18 @@ class Screen():
 
         # F1-F4
 
+        # F5-F8
+
+        self._root.bind('<F5>', self._read_image)
+        self._root.bind('<Shift-F5>', self._draw_image)
+        self._root.bind('<Control-F5>', self._image_info) # Image info
+        self._root.bind('<Control-Shift-F5>', self._fit_canvas_to_image) # Image info
+
         # F9-F12
 
         self._root.bind('<F9>', self._start_digit_points) # Start digit mode
         self._root.bind('<F10>', self._stop_digit_points) # Stop digit mode
+        
     
     # "Protected methods"
     # - Only to be used within the library, not by external files
@@ -90,6 +98,46 @@ class Screen():
         self._root.unbind('<Button-1>')
         self.cursor()
 
+    def _read_image(self, event):
+
+        """
+        Read image with F5
+        
+        :param self: Description
+        :param event: Description
+        """
+
+        self._image.read_image()
+
+        epsg = utilities.epsg()
+        if epsg is not None:
+            self._epsg = epsg
+
+    def _draw_image(self, event):
+
+        self._canvas.create_image(0,0, image=self._image._photoimage, anchor='nw') # North west
+
+    def _image_info(self, event):
+
+        print(self._image)
+
+    def _fit_canvas_to_image(self, event):
+        if self._image is None:
+            return
+        
+        if self._image.shape is None:
+            return
+        
+        rows, columns = self._image.shape
+
+        self._canvas.configure(
+            height=rows, width=columns
+        )
+
+        self._root.geometry(f'{columns}x{rows}')
+
+        self._rows = rows
+        self._columns = columns
     # User Methods
 
     def loop(self):

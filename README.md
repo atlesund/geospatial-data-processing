@@ -24,3 +24,5 @@ Longitude [-180, 180] `lambda`
 # Screen
 
 A window with a screen with rows and columns. Origin is upper left corner. A coordinate system flipped over the x-axis
+
+# Raster- and World file
