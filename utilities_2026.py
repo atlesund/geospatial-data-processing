@@ -48,6 +48,17 @@ def epsg(prompt='EPSG code', title='GEO 2026'):
     return epsg
 
 
+
+def string(prompt='Enter string', title='GEO 2026'):
+    tkinter.Tk().withdraw()
+    string = epsg = tkinter.simpledialog.askstring(
+        title=title, prompt=prompt
+    )
+
+
+    return string
+
+
 def validate(expression):
     """Validate an expression to be processed with eval()"""
     
@@ -119,6 +130,7 @@ def validate(expression):
             break
 
     return validation
+
 
 
 
