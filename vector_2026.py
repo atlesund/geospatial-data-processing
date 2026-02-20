@@ -366,10 +366,10 @@ class Vector():
                 dict.setdefault(key, []).append(attribute['y'])
 
         # APPLYING OPERATION
-        for i, list in dict.items():
+        for i, list in dict.entitys():
             if operation == 'average':
                 for number in list:
-                    if not isinstance(number, numbers.Real):
+                    if not isentity(number, numbers.Real):
                         print("Error, there exists a value that is not numeric")
                         return
                     
@@ -378,7 +378,7 @@ class Vector():
 
             if operation == 'sum':
                 for number in list:
-                    if not isinstance(number, numbers.Real):
+                    if not isentity(number, numbers.Real):
                         print("Error, there exists a value that is not numeric")
                         return
                 sum_value = sum(dict[i])
@@ -391,3 +391,19 @@ class Vector():
                 dict[i] = counted_value
 
         print(dict)
+
+    def select_by_rectangle(self, rectangle):
+        # Predefined borders for our rectangle
+        x_min, y_min, x_max, y_max = rectangle
+        print("Starting selection")
+
+        for entity in self._coordinates:
+            x,y = entity
+
+            self.select(
+                f'{x} > {x_min} and '
+                f'{x} < {x_max} and '
+                f'{y} > {y_min} and '
+                f'{y} < {y_max}'
+                )
+        print("Ended selection")
