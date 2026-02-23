@@ -213,6 +213,7 @@ class Vector():
     def select(self, expression):
         """
         Select subset of features based on logical/relational expression
+        PS! Loops through attributes to evaluate the expression.
         
         :param self: Description
         :param expression: Description
@@ -393,17 +394,11 @@ class Vector():
         print(dict)
 
     def select_by_rectangle(self, rectangle):
-        # Predefined borders for our rectangle
         x_min, y_min, x_max, y_max = rectangle
-        print("Starting selection")
 
-        for entity in self._coordinates:
-            x,y = entity
-
-            self.select(
-                f'{x} > {x_min} and '
-                f'{x} < {x_max} and '
-                f'{y} > {y_min} and '
-                f'{y} < {y_max}'
-                )
-        print("Ended selection")
+        self.select(
+            f'x > {x_min} and '
+            f'x < {x_max} and '
+            f'y > {y_min} and '
+            f'y < {y_max}'
+            )
