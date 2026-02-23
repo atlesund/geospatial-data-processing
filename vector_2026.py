@@ -2,7 +2,10 @@ import utilities_2026 as utilities
 import json
 import pyproj
 from numpy import random
+from numpy import linalg
 import numbers
+import math
+
 
 class Vector():
 
@@ -402,3 +405,80 @@ class Vector():
             f'y > {y_min} and '
             f'y < {y_max}'
             )
+    def haversine_distance(self, point_a, point_b, radius=6371000):
+        """
+        Coordinates of point_a and point_b in decimal degrees.
+        Earth radius in metres
+        Computed distance in metres
+        """
+        longitude_a, latitude_a = map(math.radians, point_a)
+        longitude_b, latitude_b = map(math.radians, point_b)
+        delta_latitude = latitude_b - latitude_a
+        delta_longitude = longitude_b - longitude_a
+        t1 = math.sin(0.5 * delta_latitude)
+        t2 = math.cos(latitude_a)
+        t3 = math.cos(latitude_b)
+        t4 = math.sin(0.5 * delta_longitude)
+        a = t1 * t1 + t2 * t3 * t4 * t4
+        c = 2.0 * math.asin(min(1.0, math.sqrt(a)))
+        distance = radius * c
+        return distance
+    
+    def euclidean_distance(self, point_a, point_b):
+        """
+        Geographic Euclidean distance (planar approximation).
+        Input: (lon, lat) in decimal degrees
+        Output: distance in metres
+        """
+        lon1, lat1 = point_a
+        lon2, lat2 = point_b
+
+        # Mean latitude for scaling longitude
+        mean_lat = math.radians((lat1 + lat2) / 2.0)
+
+        # Degree differences
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+
+        # Convert degrees → metres
+        meters_per_degree = 111_320.0
+        dx = dlon * meters_per_degree * math.cos(mean_lat)
+        dy = dlat * meters_per_degree
+
+        return math.sqrt(dx * dx + dy * dy)
+    
+    def manhattan_distance(self, point_a, point_b):
+        """
+        Geographic Manhattan distance (taxicab distance).
+        Input: (lon, lat) in decimal degrees
+        Output: distance in metres
+        """
+        lon1, lat1 = point_a
+        lon2, lat2 = point_b
+
+        mean_lat = math.radians((lat1 + lat2) / 2.0)
+
+        dlon = abs(lon2 - lon1)
+        dlat = abs(lat2 - lat1)
+
+        meters_per_degree = 111_320.0
+        dx = dlon * meters_per_degree * math.cos(mean_lat)
+        dy = dlat * meters_per_degree
+
+        return dx + dy
+    
+    def select_by_circle(self, center, radius, metric='haversine'):
+        local_selection = []
+        for count, point in enumerate(self._coordinates):
+            if metric == 'manhattan':
+                dist = self.manhattan_distance(center, point)
+            elif metric == "haversine":
+                dist = self.haversine_distance(center, point)
+            elif metric == 'euclidean':
+                dist = self.euclidean_distance(center, point)
+            else:
+                return("Error, no liable metric provided.")
+            if dist < radius:
+                local_selection.append(count)
+            
+        self._selection = local_selection
