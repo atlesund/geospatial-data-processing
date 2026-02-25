@@ -163,7 +163,14 @@ def create_osm_point_layer(vector):
 
     else:
         # TODO: Create projection
-        pass
+
+        source_crs = pyproj.CRS.from_epsg(vector.epsg)
+        target_crs = pyproj.CRS.from_epsg(4326) # Part of definition
+
+
+        projection = pyproj.Transformer.from_crs(
+            source_crs, target_crs, always_xy=True, # Order = lon, latitude
+        )
 
     # Folium Marker color
     if 'colour' in vector.fields:
@@ -190,7 +197,9 @@ def create_osm_point_layer(vector):
         if projection is None:
             longitude, latitude = point
         else:
-            pass # TODO
+            #x, y = point
+            #longitude, latitude = projection.transform(x, y)
+            longitude, latitude = projection.transform(*point)
 
         # Popup with attributes
         osm_popup_text = ''
@@ -233,6 +242,10 @@ def show_osm_map(layers, filename='osm.html'):
     osm_map = folium.Map()
     for layer in layers:
         osm_map.add_child(layer)
+
+    osm_map.fit_bounds(
+        osm_map.get_bounds()
+    )
 
     osm_map.save(filename)
 
@@ -334,3 +347,10 @@ def read_world_file(filename):
         world = None
 
     return world
+
+def project_point(point, projection):
+    x, y = point
+    x_projected, y_projected = projection.transform(x,y)
+
+    return [x_projected, y_projected]
+

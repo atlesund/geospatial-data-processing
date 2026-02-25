@@ -201,3 +201,19 @@ class Screen():
         self._canvas.create_rectangle(
             x_min, y_min, x_max, y_max, fill=colour, tag=tag
         )
+
+    
+    def draw_polyline(self, polyline, width=3, colour='white',
+                      vertices = False, tag = 'polyline'):
+        """
+        Draw polyline (in screen coordinates) on the canvas
+        """
+  
+        self._canvas.create_line(
+            polyline, fill=colour, width=width, tag=tag
+        )
+        if vertices is True:
+            for point in polyline:
+                self.draw_point(point, colour=colour, size=4, tag=tag)
+
+                

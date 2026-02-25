@@ -482,3 +482,46 @@ class Vector():
                 local_selection.append(count)
             
         self._selection = local_selection
+
+    def project(self, target_epsg):
+        """From origin source CRS to target CRS"""
+
+        if self._epsg is None:
+            utilities.warning('Unknown source EPSG code')
+            return
+        if self._epsg == target_epsg:
+            return
+        # PYPROJ
+
+        # 1. Define source and target CRSs
+        source_crs = pyproj.CRS.from_epsg(self._epsg)
+        target_crs = pyproj.CRS.from_epsg(target_epsg)
+
+        # 2. Create Transformer class instance
+
+        projection = pyproj.Transformer.from_crs(
+            source_crs, target_crs, always_xy=True, # Order = lon, latitude
+        )
+
+        # 3. Transformation
+
+        projected = []
+        for entity in self._coordinates:
+
+            if self._geometry == 'POINT':
+                entity_projected = utilities.project_point(
+                    entity, projection
+                )
+
+            elif self._geometry == 'POLYLINE':
+                pass              
+            elif self._geometry == 'POLYGON':
+                pass
+
+            projected.append(entity_projected)
+
+        # 4. Update coordinates and EPSG of current vector instance
+        self._coordinates = projected
+
+        self._epsg = target_epsg
+
