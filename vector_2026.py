@@ -370,10 +370,10 @@ class Vector():
                 dict.setdefault(key, []).append(attribute['y'])
 
         # APPLYING OPERATION
-        for i, list in dict.entitys():
+        for i, list in dict.items():
             if operation == 'average':
                 for number in list:
-                    if not isentity(number, numbers.Real):
+                    if not isinstance(number, numbers.Real):
                         print("Error, there exists a value that is not numeric")
                         return
                     
@@ -382,7 +382,7 @@ class Vector():
 
             if operation == 'sum':
                 for number in list:
-                    if not isentity(number, numbers.Real):
+                    if not isinstance(number, numbers.Real):
                         print("Error, there exists a value that is not numeric")
                         return
                 sum_value = sum(dict[i])
@@ -525,3 +525,43 @@ class Vector():
 
         self._epsg = target_epsg
 
+    def read_geojson(self, filename=None, multi=False):
+        if filename is None:
+            filename = utilities.input_file(['geojson'])
+
+        with open(filename, 'rt') as f:
+            data = json.load(f)
+
+        if self._geometry == 'POINT':
+            coordinates, attributes = utilities.read_geojson_points(data, multi)
+        elif self._geometry == 'POLYLINE':
+            coordinates, attributes = utilities.read_geojson_polylines(data, multi)
+        elif self._geometry == 'POLYGON':
+            coordinates, attributes = utilities.read_geojson_polygons(data, multi)
+
+        self._coordinates = coordinates
+        self._attributes = attributes
+        self._source = filename
+        self._format = 'GeoJSON'
+        self._epsg = 4326
+
+    def remove(self):
+        if len(self._coordinates) == 0 or len(self._attributes) == 0:
+            utilities.warning('The instance is empty')
+            return
+
+        if self._selection is None:
+            utilities.warning('No records selected')
+            return
+
+        new_coordinates = []
+        new_attributes = []
+
+        for count in range(len(self._coordinates)):
+            if count not in self._selection:
+                new_coordinates.append(self._coordinates[count])
+                new_attributes.append(self._attributes[count])
+
+        self._coordinates = new_coordinates
+        self._attributes = new_attributes
+        self._selection = None

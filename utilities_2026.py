@@ -404,3 +404,96 @@ def write_geojson_points(filename, coordinates, attributes, source_epsg):
     }
     with open(filename, 'wt') as geojson_file:
         json.dump(geojson, geojson_file, indent=4)
+
+
+def describe_geojson(filename=None):
+
+    if filename is None:
+        filename = input_file(['geojson'])
+
+    with open(filename, 'rt') as f:
+        data = json.load(f)
+
+    counts = {
+        'Point': 0,
+        'LineString': 0,
+        'Polygon': 0,
+        'MultiPoint': 0,
+        'MultiLineString': 0,
+        'MultiPolygon': 0,
+        'GeometryCollection': 0
+    }
+
+    for feature in data['features']:
+        geometry_type = feature['geometry']['type']
+
+        if geometry_type in counts:
+            counts[geometry_type] += 1
+
+    return counts
+
+
+def read_geojson_points(data, multi=False):
+    coordinates = []
+    attributes = []
+
+    count = 0
+    for feature in data['features']:
+        geom_type = feature['geometry']['type']
+
+        if geom_type == 'Point':
+            coordinates.append(feature['geometry']['coordinates'])
+            attributes.append({'fid': count})
+            count += 1
+
+        elif geom_type == 'MultiPoint' and multi is True:
+            for part in feature['geometry']['coordinates']:
+                coordinates.append(part)
+                attributes.append({'fid': count})
+                count += 1
+
+    return [coordinates, attributes]
+
+
+def read_geojson_polylines(data, multi=False):
+    coordinates = []
+    attributes = []
+
+    count = 0
+    for feature in data['features']:
+        geom_type = feature['geometry']['type']
+
+        if geom_type == 'LineString':
+            coordinates.append(feature['geometry']['coordinates'])
+            attributes.append({'fid': count})
+            count += 1
+
+        elif geom_type == 'MultiLineString' and multi is True:
+            for part in feature['geometry']['coordinates']:
+                coordinates.append(part)
+                attributes.append({'fid': count})
+                count += 1
+
+    return [coordinates, attributes]
+
+
+def read_geojson_polygons(data, multi=False):
+    coordinates = []
+    attributes = []
+
+    count = 0
+    for feature in data['features']:
+        geom_type = feature['geometry']['type']
+
+        if geom_type == 'Polygon':
+            coordinates.append(feature['geometry']['coordinates'])
+            attributes.append({'fid': count})
+            count += 1
+
+        elif geom_type == 'MultiPolygon' and multi is True:
+            for part in feature['geometry']['coordinates']:
+                coordinates.append(part)
+                attributes.append({'fid': count})
+                count += 1
+
+    return [coordinates, attributes]
