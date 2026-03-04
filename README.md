@@ -5,6 +5,29 @@ conda deactivate
 conda activate geo
 ```
 
+# Running files
+
+The file structure is: 
+
+```text
+root/
+│
+├── geo_2026/
+│   ├── __init__.py
+│   └── vector.py
+│
+├── examples/
+│   └── example_102_random_points.py
+│
+├── exercises/
+└── tests/
+```
+All examples, exercises and tests uses geo_2026,
+so to run files from the project root, run the files as modules. Otherwise they wont be able to access the library we have built:
+```bash
+python -m examples.example_102_random_points
+```
+
 # REFERENCE SYSTEMS
 
 1) Geographic: `Longitude` and `Latitude``

@@ -1,2 +1,5 @@
-venv/
-/venv
+media/
+__pycache__/
+.vscode/
+*.zip
+test.py

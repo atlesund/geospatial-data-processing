@@ -1,3 +1,0 @@
-1 GeoJSON
-2 Shapefile (GIS)
-3 GeoPackage
