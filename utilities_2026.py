@@ -328,11 +328,9 @@ def read_world_file(filename):
     image_filename, image_extension = os.path.splitext(filename)
 
     # Corresponding world file: png -> pgw
+    
     world_extension = image_extension[1] + image_extension[-1] + 'w'
-
     world_filename = image_filename + '.' + world_extension
-
-    # print(world_filename)
 
     try:
         with open(world_filename, 'rt') as world_file: # world_file = the file object
@@ -497,3 +495,86 @@ def read_geojson_polygons(data, multi=False):
                 count += 1
 
     return [coordinates, attributes]
+
+def multiple_input_files(formats=None, title='Select multiple input files'):
+
+    """Select multiple files by dialogue box"""
+    
+    try:
+
+        if formats is None:
+            filetypes = [('All Files', '*.*')]
+        else:
+            filetypes = []
+
+            for geoformat in formats:
+
+                try:
+                    filetypes.append(geoformats[geoformat.lower()])
+                except:
+                    continue
+
+            filetypes.append(('All Files', '*.*'))
+
+        # GUI
+
+        tkinter.Tk().withdraw()
+
+        filenames = tkinter.filedialog.askopenfilenames(
+            title=title, filetypes=filetypes
+        )
+
+        if not filenames:
+            filenames = None
+    except:
+        filenames = None
+
+    return filenames
+
+
+def merge_geojson(input_filenames, output_filename):
+    # depending on type of geometry we will use: read_geojson_polylines etc. to retrieve the coordinates and attributes
+    # NB! We have to alter it so that it reads the properties in geojson
+    if input_filenames is None or output_filename is None:
+        warning("Missing filename(s)")
+        return
+    
+
+    coordinates = []
+    attributes = []
+    for input_file in input_filenames:
+        with open(input_file, 'rt') as f:
+            data = json.load(f)
+
+        coordinates_temp, attributes_temp = read_geojson_points(data)
+        
+        coordinates.append(coordinates_temp)
+        attributes.append(attributes_temp)
+        # We dont have use for the attributes delivered from read_geojson_points, since they have overlapping fid, we need to 
+        # create new fids
+        
+
+    features = [] #feature entry of GeoJSON format
+
+    #for i in range(0,len(coordinates)):
+    for count, point in enumerate(coordinates):
+        # We are defining a feature collection
+        feature = {
+            'type': 'Feature',
+            'geometry': {
+                'type': 'Point',
+                'coordinates': point
+            },
+            'properties': {
+                'MERGE_ID': count,
+            }
+        }
+
+        features.append(feature)
+
+    geojson = {
+        'type': 'FeatureCollection',
+        'features': features
+    }
+    with open(output_filename, 'wt') as geojson_file:
+        json.dump(geojson, geojson_file, indent=4)

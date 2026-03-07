@@ -56,14 +56,14 @@ class Screen():
         self._root.bind('<F5>', self._read_image)
         self._root.bind('<Shift-F5>', self._draw_image)
         self._root.bind('<Control-F5>', self._image_info) # Image info
-        self._root.bind('<Control-Shift-F5>', self._fit_canvas_to_image) # Image info
+        self._root.bind('<Control-Shift-F5>', self._fit_canvas_to_image)
 
         # F9-F12
 
         self._root.bind('<F9>', self._start_digit_points) # Start digit mode
         self._root.bind('<F10>', self._stop_digit_points) # Stop digit mode
         
-        self._root.bind('<F12>', self._digit_points_to_geojson) # 
+        self._root.bind('<F12>', self._digit_points_to_geojson) # points to geojson
         
     
     # "Protected methods"
@@ -111,6 +111,7 @@ class Screen():
 
         self._image.read_image()
         self._world_file = self._image._world_file
+        print(f'WORLD FILE SET IN READ_IMAGE (F5): {self._world_file}') #REMOVE
 
         epsg = utilities.epsg()
         if epsg is not None:

@@ -54,6 +54,6 @@ class Raster():
         self._photoimage = tkinter.PhotoImage(file=filename)
         self._filename = filename
 
-        # World file world file world file world file world file world file world file world file world file
+        # World file
         world_file = utilities.read_world_file(filename)
         self._world_file = world_file
