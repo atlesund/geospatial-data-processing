@@ -11,6 +11,7 @@ import tkinter.filedialog
 import tkinter.messagebox
 import tkinter.simpledialog
 
+import shapefile
 import folium # For mapping
 import pyproj # From one system to another
 
@@ -578,3 +579,118 @@ def merge_geojson(input_filenames, output_filename):
     }
     with open(output_filename, 'wt') as geojson_file:
         json.dump(geojson, geojson_file, indent=4)
+
+
+def read_shapefile_points(filename, encoding):
+    report = {
+        'status': False,
+        'message': '',
+        'coordinates': [],
+        'attributes': [],
+        'epsg': 'None'
+    }
+
+    # Create Shapefile "Reader"
+
+    try:
+        reader = shapefile.Reader(filename, encoding=encoding)
+    except:
+        report['message'] = 'Filename not found'
+        return
+    
+    shapefile_geometry = reader.shapeType
+
+    #if shapefile_geometry in [1, 8, 11, 18, 28] #Points, MultiPoints etc.
+    if shapefile_geometry != 1:
+        report['message'] = 'Wrong Shapefile geometry type'
+        return
+    
+    # Fields in the shapefile
+    fields = reader.fields[1:]
+
+    coordinates = []
+    attributes = []
+
+    print(fields)
+
+    # Coordinates and attributes
+
+    for record in reader.shapeRecords():
+        print("==================")
+        print(record)
+        print("==================")
+        print(record.shape.points)
+        print("==================")
+
+        # Coordinates
+        if shapefile_geometry == 1:
+            coordinates.append(record.shape.points[0])
+        elif shapefile_geometry == 8:
+            pass # We are interested in the Point (1) for now
+
+        # Attributes
+
+        values = record.record[:]
+
+        print(values)
+
+        attribute = {}
+
+        for count, value in enumerate(values):
+
+            field_name = fields[count][0]
+            field_type = fields[count][1]
+
+            field_decimal_places = fields[count][-1]
+
+            # Convert to int, float, or date
+
+            if value is None:
+                if field_type == 'N': # N = Number
+                    if field_decimal_places == 0:
+                        value = -9999
+                    else:
+                        value = -9999.0
+                elif field_type == 'D': # Shapefile format for date
+                    value = 'null'
+            else:
+                if field_type == 'N': # N = Number
+                    if field_decimal_places == 0:
+                        try: 
+                            value = int(value)
+                        except:
+                            value = int(value.decode(encoding))
+
+                    else:
+                        value = float(value)
+                elif field_type == 'D': # Shapefile format for date
+                    value = value.strftime('%Y-%m-%d')
+
+            
+            attribute[field_name] = value
+
+        attributes.append(attribute)
+
+
+    report['status'] = True
+    report['coordinates'] = coordinates
+    report['attributes'] = attributes
+
+
+    # EPSG code
+
+    report['epsg'] = get_shapefile_epsg(filename)
+
+    return report
+
+def get_shapefile_epsg(filename):
+    prj_filename = filename.replace('.shp', '.prj')
+
+    try:
+        with open(prj_filename, 'rt') as prj_file:
+            wkt = prj_file.read()
+            epsg = pyproj.CRS.from_wkt(wkt).to_epsg()
+
+    except:
+        epsg = None
+    return epsg

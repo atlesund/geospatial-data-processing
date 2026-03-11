@@ -1,3 +1,4 @@
 pyproj
 numpy
 python-math
+pyshp

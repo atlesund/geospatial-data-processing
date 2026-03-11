@@ -565,3 +565,31 @@ class Vector():
         self._coordinates = new_coordinates
         self._attributes = new_attributes
         self._selection = None
+
+
+    def read_shapefile(self, filename=None, encoding='utf-8'):
+        if filename is None:
+            filename = utilities.input_file(['shp'])
+
+        if filename is None:
+            return
+        
+        if self._geometry == 'POINT':
+            report = utilities.read_shapefile_points(filename, encoding)
+        elif self._geometry == 'POLYLINE':
+            pass
+        elif self._geometry == 'POLYGON':
+            pass
+
+        # Check if the report contains errors:
+
+        if report['status'] is False:
+            utilities.warning(report['message'])
+            return
+        
+        # Update Vector() instance
+        self._coordinates = report['coordinates']
+        self._attributes = report['attributes']
+        self._epsg = report['epsg']
+        self._source = filename
+        self._format = 'Shapefile'
