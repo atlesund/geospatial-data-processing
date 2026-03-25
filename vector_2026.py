@@ -206,7 +206,7 @@ class Vector():
                 self._attributes[count]['x'] = x
                 self._attributes[count]['y'] = y
             elif self._geometry == 'POLYLINE':
-                self._attributes[count]['length'] = utilities.length(entity)
+                self._attributes[count]['length'] = utilities.length()
             elif self._geometry == 'POLYGON':
                 self._attributes[count]['area'] = utilities.area()
                 self._attributes[count]['perimeter'] = utilities.perimeter()
@@ -593,3 +593,30 @@ class Vector():
         self._epsg = report['epsg']
         self._source = filename
         self._format = 'Shapefile'
+
+    def read_csv(self, id_field, x_field, y_field, filename=None, separator=','):
+        if filename is None:
+            filename = utilities.input_file(['csv'])
+
+        if filename is None:
+            return
+        
+        if self._geometry == 'POINT':
+            dataset = utilities.read_csv_points(filename, id_field, x_field, y_field, separator)
+        elif self._geometry == 'POLYLINE':
+            dataset = utilities.read_csv_polylines(filename, id_field, x_field, y_field, separator)
+        elif self._geometry == 'POLYGON':
+            pass
+
+        # Check if the report contains errors:
+        if dataset is None:
+            return
+        
+        # Update Vector() instance
+
+        coordinates, attributes = dataset
+
+        self._coordinates = coordinates
+        self._attributes = attributes
+        self._source = filename
+        self._format = 'CSV'

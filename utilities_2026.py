@@ -694,3 +694,164 @@ def get_shapefile_epsg(filename):
     except:
         epsg = None
     return epsg
+
+
+def intersect(p_1, p_2, p_3, p_4):
+
+    """
+    Compute intersection between:
+    Segment 1 = (p_1, p_2)
+    Segment 2 = (p_3, p_4)
+
+    Return coordinates and type of intersection
+    """
+
+    x_1, y_1 = p_1
+    x_2, y_2 = p_2
+    x_3, y_3 = p_3
+    x_4, y_4 = p_4
+
+    # Check denominator
+
+    d = (y_2 - y_1) * (x_4 - x_3) - (x_2 - x_1) * (y_4 - y_3)
+
+    if d == 0: # Tolerance
+        return None # There is no intersection, i.e. parallel segments
+    
+    # Compute the numerators
+
+    n_a = (x_1 - x_3) * (y_4 - y_3) * (y_1 - y_3) * (x_4 - x_3)
+    n_b = (x_2 - x_1) * (y_3 - y_1) * (y_2 - y_1) * (x_3 - x_1)
+
+    # Scale factors
+
+    u_a = n_a / d
+    u_b = n_b / d
+
+    # Intersection coordinates
+
+    x_intersection = x_1 + u_a * (x_2 - x_1)
+    y_intersection = y_1 + u_a * (y_2 - y_1)
+
+    # Type of intersection
+
+    if u_a >= 0.0 and u_a <= 1.0 and u_b >= 0.0 and u_b <= 1.0:
+        type_intersection = True # The segments intersect
+    elif (u_a >= 0.0 and u_a) <= 1.0 and (u_b < 0.0 or u_b > 1.0):
+        type_intersection = None # The lines intersect but not the segments
+    else:
+        type_intersection = False # The lines do not intersect
+
+    return [x_intersection, y_intersection, type_intersection] 
+
+
+def read_csv_points(filename, id_field, x_field, y_field, separator):
+
+    # Read file contents
+
+    with open(filename, 'rt') as csv_file:
+        data = csv_file.readlines()
+
+    # Header
+
+    header = data[0].strip().split(separator)
+
+    # Check fields
+
+    if id_field not in header:
+        warning(f'ID field "{id_field}" not found')
+        return
+    
+    if x_field not in header:
+        warning(f'X field "{x_field}" not found')
+        return
+
+    if y_field not in header:
+        warning(f'Y field "{y_field}" not found')
+        return
+
+    # Field indices
+
+    id_field_index = header.index(id_field)
+    x_field_index = header.index(x_field)
+    y_field_index = header.index(y_field)
+
+    # Process data
+
+    coordinates = []
+    attributes = []
+
+    for record in data[1:]:
+
+        attribute = {}
+
+        for field_index, field_value in enumerate(record.strip().split(separator)):
+
+            if field_index == id_field_index:
+                attribute['fid'] = field_value
+            elif field_index == x_field_index:
+                x = float(field_value)
+            elif field_index == y_field_index:
+                y = float(field_value)
+            else:
+                attribute[header[field_index]] = field_value
+
+        coordinates.append([x, y])
+        attributes.append(attribute)
+                
+    return [coordinates, attributes]
+
+
+def read_csv_polylines(filename, id_field, x_field, y_field, separator):
+
+    # Read file contents
+
+    points = read_csv_points(filename, id_field, x_field, y_field, separator)
+
+    if points is None:
+        return None
+
+    coordinates, attributes = points
+
+    raw_polylines = {}
+    raw_attributes = {}
+
+    for count, point in enumerate(coordinates):
+        point_id = attributes[count]['fid'] # WE store id's as 'fid' in the attributes
+        try:
+            raw_polylines[point_id].append(point)
+        except:
+            raw_polylines[point_id] = [point]
+            raw_attributes[point_id] = attributes[count]
+
+            # Keep attributes from first vertex of the polyline, or we could also store all attributes in a list
+
+    # Ensure there are polylines with more than 1 vertex
+
+    new_polylines = []
+    new_attributes = []
+
+    for poly_id, polyline in raw_polylines.items():
+        if len(polyline) > 1:
+            new_polylines.append(polyline)
+            new_attributes.append(raw_attributes[poly_id])
+
+    if len(new_polylines) == 0:
+        warning("no polylines found")
+        return None
+    
+    return [new_polylines, new_attributes]
+
+
+def get_segments(polyline):
+    number_of_vertices = len(polyline)
+
+    segments = []
+
+    for count in range(1,number_of_vertices):
+        p_1 = polyline[count - 1]
+        p_2 = polyline[count]
+
+        segments.append([p_1,p_2])
+
+    return segments
