@@ -21,6 +21,11 @@ class Screen():
         self._epsg = None
         self._world_file = None
 
+        # Route selection state
+        self._start_point = None
+        self._end_point = None
+        self._route_stage = None
+
         # Root window    
         self._root = tkinter.Tk()
 
@@ -62,7 +67,11 @@ class Screen():
 
         self._root.bind('<F9>', self._start_digit_points) # Start digit mode
         self._root.bind('<F10>', self._stop_digit_points) # Stop digit mode
-        
+
+        # Route selection mode bindings
+        self._root.bind('<Shift-F9>', self._start_route_selection) # Start route selection
+        self._root.bind('<Shift-F10>', self._stop_route_selection) # Stop route selection
+
         self._root.bind('<F12>', self._digit_points_to_geojson) # points to geojson
         
     
@@ -99,6 +108,60 @@ class Screen():
 
         self._root.unbind('<Button-1>')
         self.cursor()
+
+    def _select_route_point(self, event):
+        """
+        Handle route point selection with two-stage workflow (start, then end).
+
+        :param self: Instance of the class
+        :param event: Mouse event containing x, y coordinates
+        """
+        x, y = event.x, event.y
+
+        if self._route_stage == 'start':
+            # Delete previous start marker if exists
+            self.delete('selected_start')
+            # Draw red marker for start point
+            self.draw_point([x, y], size=6, colour='red', tag='selected_start')
+            # Store start point
+            self._start_point = [x, y]
+            # Toggle to end stage
+            self._route_stage = 'end'
+            print(f'Start point selected: [{x}, {y}]')
+        elif self._route_stage == 'end':
+            # Delete previous end marker if exists
+            self.delete('selected_end')
+            # Draw blue marker for end point
+            self.draw_point([x, y], size=6, colour='blue', tag='selected_end')
+            # Store end point
+            self._end_point = [x, y]
+            # Toggle back to start stage for reset
+            self._route_stage = 'start'
+            print(f'End point selected: [{x}, {y}]')
+
+    def _start_route_selection(self, event):
+        """
+        Start route selection mode for picking start and end points.
+
+        :param self: Instance of the class
+        :param event: Keyboard event (Shift-F9)
+        """
+        self._route_stage = 'start'
+        self._root.bind('<Button-1>', self._select_route_point)
+        self.cursor('tcross')
+        print('Route selection started: click to select start point, then end point')
+
+    def _stop_route_selection(self, event):
+        """
+        Stop route selection mode and reset state.
+
+        :param self: Instance of the class
+        :param event: Keyboard event (Shift-F10)
+        """
+        self._root.unbind('<Button-1>')
+        self.cursor()
+        self._route_stage = None
+        print('Route selection stopped')
 
     def _read_image(self, event):
 
