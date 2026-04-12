@@ -14,19 +14,18 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **MAP-03**: User can pan the map to navigate to different areas
 - [ ] **MAP-04**: User can zoom in/out to adjust map scale
 - [ ] **MAP-05**: System displays selected coordinates in decimal degrees format
-- [ ] **MAP-06**: System displays selected coordinates in UTM format (appropriate zone for Norway)
 
 ### Route Configuration
 
-- [ ] **CFG-01**: User can enable distance priority optimization for shortest path
+(None - v1 uses fixed optimization settings)
 
 ### Route Computation
 
 - [ ] **COMP-01**: System applies penalties for water body crossings (lakes, rivers, fjords)
-- [ ] **COMP-02**: System combines established hiking trails into routing network
-- [ ] **COMP-03**: System incorporates OpenStreetMap paths and trails where available
-- [ ] **COMP-04**: System uses terrain-based routing where trail network incomplete
-- [ ] **COMP-05**: System handles Norway's multiple UTM zones (32-35N) without coordinate errors
+- [ ] **COMP-02**: System applies fixed penalties for steep terrain to ensure realistic hiking routes
+- [ ] **COMP-03**: System combines established hiking trails into routing network
+- [ ] **COMP-04**: System incorporates OpenStreetMap paths and trails where available
+- [ ] **COMP-05**: System uses terrain-based routing where trail network incomplete
 
 ### Route Visualization
 
@@ -77,12 +76,16 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Feature | Reason |
 |---------|--------|
+| UTM coordinate display (MAP-06) | v1 uses UTM 32V only, no zone conversion needed |
+| User-specified optimization (CFG-01) | v1 uses fixed penalty-based optimization with steep terrain penalties |
 | Elevation profile calculation | User deferred to v2, adds complexity |
 | Route statistics display | User deferred to v2, not essential for core routing |
 | Max elevation constraint | User deferred to v2, intricate UI required |
 | Scenic preference weighting | User deferred to v2, complex weight calculation |
 | Route alternatives display | User deferred to v2, multi-path algorithm complexity |
 | Offline data download/management | User deferred to v2, requires cache management UX |
+| User-configurable steep penalty | v1 uses fixed steep terrain penalty |
+| Multi-UTM zone handling | v1 limited to UTM 32V (southern Norway) only |
 | Real-time weather integration | Out of v1 scope per PROJECT.md, complex dependencies |
 | Social features (sharing, reviews) | Out of v1 scope per PROJECT.md, beyond route generation |
 | Mobile app | Out of v1 scope per PROJECT.md, desktop-only needed |
@@ -101,19 +104,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MAP-03 | Phase 1 | Pending |
 | MAP-04 | Phase 1 | Pending |
 | MAP-05 | Phase 1 | Pending |
-| MAP-06 | Phase 1 | Pending |
-| CFG-01 | Phase 1 | Pending |
 | COMP-01 | Phase 4 | Pending |
 | COMP-02 | Phase 3 | Pending |
-| COMP-03 | Phase 3 | Pending |
-| COMP-04 | Phase 3 | Pending |
+| COMP-03 | Phase 2 | Pending |
+| COMP-04 | Phase 2 | Pending |
 | COMP-05 | Phase 2 | Pending |
 | VIZ-01 | Phase 5 | Pending |
 | EXP-01 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 14 total
-- Mapped to phases: 14
+- v1 requirements: 12 total
+- Mapped to phases: 12
 - Unmapped: 0 ✓
 
 ---
