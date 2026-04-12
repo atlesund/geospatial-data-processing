@@ -2,3 +2,4 @@ numpy
 pyproj
 pyshp
 folium
+pytest>=8.0.0
