@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-04-12)
 Phase: 1 of 5 (Map Interaction & User Selection)
 Plan: 0 of 3 in current phase
 Status: Ready to plan
-Last activity: 2026-04-12 — Roadmap revised
+Last activity: 2026-04-12 — Completed quick task 260412-pd7: Fix known bugs (intersection logic, validation typo) and update requirements.txt
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -55,6 +55,12 @@ None yet.
 [Issues that affect future work]
 
 None yet.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260412-pd7 | Fix known bugs (intersection logic, validation typo) and update requirements.txt | 2026-04-12 | 2f253fc | [260412-pd7-fix-the-known-bugs](./quick/260412-pd7-fix-the-known-bugs-under-concerns-and-ma/) |
 
 ## Session Continuity
 
