@@ -1,4 +1,4 @@
-pyproj
 numpy
-python-math
+pyproj
 pyshp
+folium
