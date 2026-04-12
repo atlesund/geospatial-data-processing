@@ -30,13 +30,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can pan the map to navigate to different geographic areas
   4. User can zoom in/out to adjust map scale for different levels of detail
   5. User can see selected coordinates displayed in decimal degrees format
-**Plans**: TBD
+**Plans**: 3
 **UI hint**: yes
 
 Plans:
-- [ ] 01-01: Extend Screen class to support click-based point digitizing with visual markers
-- [ ] 01-02: Implement map pan and zoom controls for navigation
-- [ ] 01-03: Add coordinate display in decimal degrees format
+- [x] 01-01: Set up test infrastructure with pytest framework and test fixtures
+- [x] 01-02: Extend Screen class to support click-based point digitizing with visual markers
+- [x] 01-03: Implement map pan and zoom controls with coordinate display in decimal degrees
 
 ### Phase 2: Routing Network Construction
 **Goal**: System constructs a complete routing network from established trails, OpenStreetMap data, and terrain-based meshes
