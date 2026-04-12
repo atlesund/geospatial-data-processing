@@ -1,5 +1,6 @@
 import json
 import tkinter
+import pyproj
 
 
 from vector_2026 import Vector
@@ -72,6 +73,22 @@ class Screen():
         self._root.bind('<Shift-F9>', self._start_route_selection) # Start route selection
         self._root.bind('<Shift-F10>', self._stop_route_selection) # Stop route selection
 
+        # Pan and zoom navigation bindings
+        self._canvas.bind('<Button-2>', self._start_pan)  # Middle mouse start pan
+        self._canvas.bind('<B2-Motion>', self._do_pan)   # Middle mouse drag pan
+        self._canvas.bind('<Button-3>', self._start_pan)  # Right mouse start pan (alternative)
+        self._canvas.bind('<B3-Motion>', self._do_pan)   # Right mouse drag pan (alternative)
+
+        # Mouse wheel bindings (cross-platform)
+        self._root.bind('<MouseWheel>', self._handle_mouse_wheel)   # Windows/macOS
+        self._root.bind('<Button-4>', self._handle_mouse_wheel)    # Linux scroll up
+        self._root.bind('<Button-5>', self._handle_mouse_wheel)    # Linux scroll down
+
+        # Zoom keyboard shortcuts
+        self._root.bind('<plus>', self._zoom_in)    # Zoom in with + key
+        self._root.bind('<equal>', self._zoom_in)   # Zoom in with = key (unshifted +)
+        self._root.bind('<minus>', self._zoom_out)  # Zoom out with - key
+
         self._root.bind('<F12>', self._digit_points_to_geojson) # points to geojson
         
     
@@ -125,6 +142,8 @@ class Screen():
             self.draw_point([x, y], size=6, colour='red', tag='selected_start')
             # Store start point
             self._start_point = [x, y]
+            # Display coordinates
+            self._update_coordinate_display([x, y], 'Start')
             # Toggle to end stage
             self._route_stage = 'end'
             print(f'Start point selected: [{x}, {y}]')
@@ -135,6 +154,8 @@ class Screen():
             self.draw_point([x, y], size=6, colour='blue', tag='selected_end')
             # Store end point
             self._end_point = [x, y]
+            # Display coordinates
+            self._update_coordinate_display([x, y], 'End')
             # Toggle back to start stage for reset
             self._route_stage = 'start'
             print(f'End point selected: [{x}, {y}]')
@@ -162,6 +183,133 @@ class Screen():
         self.cursor()
         self._route_stage = None
         print('Route selection stopped')
+
+    def _start_pan(self, event):
+        """
+        Start panning by marking the initial mouse position.
+
+        :param self: Instance of the class
+        :param event: Mouse event (middle or right button)
+        """
+        self._canvas.scan_mark(event.x, event.y)
+
+    def _do_pan(self, event):
+        """
+        Continue panning by dragging the canvas.
+
+        :param self: Instance of the class
+        :param event: Mouse event with drag coordinates
+        """
+        self._canvas.scan_dragto(event.x, event.y, gain=1)
+        # Redisplay coordinate labels after pan
+        if self._start_point:
+            self._update_coordinate_display(self._start_point, 'Start')
+        if self._end_point:
+            self._update_coordinate_display(self._end_point, 'End')
+
+    # Zoom in/out around mouse cursor position
+    def _zoom_in(self, event):
+        """
+        Zoom in by 10% around the cursor position.
+
+        :param self: Instance of the class
+        :param event: Mouse event with cursor coordinates
+        """
+        canvas_x = self._canvas.canvasx(event.x)
+        canvas_y = self._canvas.canvasy(event.y)
+        scale_factor = 1.1
+        self._canvas.scale('all', canvas_x, canvas_y, scale_factor, scale_factor)
+        # Redisplay coordinate labels after zoom
+        if self._start_point:
+            self._update_coordinate_display(self._start_point, 'Start')
+        if self._end_point:
+            self._update_coordinate_display(self._end_point, 'End')
+
+    def _zoom_out(self, event):
+        """
+        Zoom out by 10% around the cursor position.
+
+        :param self: Instance of the class
+        :param event: Mouse event with cursor coordinates
+        """
+        canvas_x = self._canvas.canvasx(event.x)
+        canvas_y = self._canvas.canvasy(event.y)
+        scale_factor = 0.9
+        self._canvas.scale('all', canvas_x, canvas_y, scale_factor, scale_factor)
+        # Redisplay coordinate labels after zoom
+        if self._start_point:
+            self._update_coordinate_display(self._start_point, 'Start')
+        if self._end_point:
+            self._update_coordinate_display(self._end_point, 'End')
+
+    # Cross-platform mouse wheel handler for Windows/macOS/Linux
+    def _handle_mouse_wheel(self, event):
+        """
+        Handle mouse wheel events for zooming on all platforms.
+
+        :param self: Instance of the class
+        :param event: Mouse wheel event (delta for Windows/macOS, num for Linux)
+        """
+        if hasattr(event, 'delta'):
+            # Windows/macOS: event.delta is positive for scroll up, negative for down
+            delta = event.delta
+        else:
+            # Linux: use event.num (4 for scroll up, 5 for scroll down)
+            delta = 120 if event.num == 4 else -120
+
+        if delta > 0:
+            self._zoom_in(event)
+        else:
+            self._zoom_out(event)
+
+    def screen_to_decimal_degrees(self, screen_point):
+        """
+        Transform screen coordinates to WGS84 decimal degrees.
+
+        :param self: Instance of the class
+        :param screen_point: [x, y] screen coordinates
+        :return: [lon, lat] in decimal degrees, or None if world file not set
+        """
+        if self._world_file is None:
+            return None
+
+        # Screen to world coordinates using affine transformation
+        world_point = utilities.screen_to_world(screen_point, self._world_file)
+
+        # If already EPSG:4326 or no EPSG set, return as-is
+        if self._epsg is None or self._epsg == 4326:
+            return world_point
+
+        # Transform from current EPSG to EPSG:4326 (WGS84)
+        try:
+            transformer = pyproj.Transformer.from_crs(
+                pyproj.CRS.from_epsg(self._epsg),
+                pyproj.CRS.from_epsg(4326),
+                always_xy=True
+            )
+            lon, lat = transformer.transform(*world_point)
+            return [lon, lat]
+        except Exception:
+            return world_point  # Fallback if transformation fails
+
+    def _update_coordinate_display(self, point, label):
+        """
+        Display decimal degree coordinates for a selected point.
+
+        :param self: Instance of the class
+        :param point: [x, y] screen coordinates
+        :param label: Label for the point ('Start' or 'End')
+        """
+        coord_point = self.screen_to_decimal_degrees(point)
+        if coord_point is None:
+            return
+
+        lon, lat = coord_point
+        self.delete('coord_display')
+
+        # Format with 6 decimal places for precision
+        message = f'{label}: Lat {lat:.6f}, Lon {lon:.6f}'
+        self.draw_text(point, message, colour='white', tag='coord_display')
 
     def _read_image(self, event):
 
