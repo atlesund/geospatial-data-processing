@@ -352,27 +352,23 @@ screen.delete('coord_display')
 
 *Note: Assumptions exist because base map image georeferencing strategy not yet documented in existing code examples.* Planner should validate map data availability before Phase 1 execution.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Base map availability for Norway terrain**
-   - What we know: Raster.read_image() supports PNG+PGW georeferencing, utilities.read_world_file() parses .pgw files
-   - What's unclear: Does pre-existing PNG+PGW map coverage exist for Norway? Where should it be stored?
-   - Recommendation: User confirms map data source/path prior to Phase 1 implementation, or include placeholder map fetch in Wave 1
+   - RESOLVED: Test fixtures in Wave 0 will create sample PNG+PGW files for testing. Production maps will be loaded via existing Raster.read_image() workflow (user-specified path).
+   - Decision: Test data fixtures created in tests/conftest.py; production uses existing image loading pattern.
 
 2. **User workflow sequence**
-   - What we know: Screen class has F5 binding for image loading, F9/F12 for digitizing
-   - What's unclear: Should user load map image first, then select points? Or auto-load map on route selector init?
-   - Recommendation: Follow existing pattern: user loads georeferenced image via existing Raster.read_image() (F5), then route selector initialized on world file
+   - RESOLVED: Follow existing Screen pattern - user loads georeferenced image first, then route selector initialized on world file.
+   - Decision: User loads map via existing Raster workflow before route selection begins.
 
 3. **Coordinate persistence strategy**
-   - What we know: Selected points stored in Screen attributes, can export via existing _digit_points_to_geojson() (F12)
-   - What's unclear: Should route selector auto-export coordinates on each selection, or wait for explicit user action?
-   - Recommendation: Display coordinates in real-time (MAP-05), defer export to Route Computation phase
+   - RESOLVED: Display coordinates in real-time (MAP-05), defer any export functionality to Route Computation phase.
+   - Decision: Real-time display only during Phase 1; no export logic.
 
 4. **Error handling for missing georeferencing**
-   - What we know: utilities.screen_to_world() returns None if world_file is None; existing code has bare except clauses
-   - What's unclear: Should Phase 1 block route selection if no world file, or fallback to screen-only coordinates?
-   - Recommendation: Phase 1 should require world file (error if missing); MAP-05 explicitly requires decimal degrees
+   - RESOLVED: Phase 1 requires world file for coordinate display (MAP-05 needs EPSG:4326 transformation).
+   - Decision: Fail gracefully with error message if world_file is None before attempting coordinate transformations.
 
 ## Environment Availability
 
