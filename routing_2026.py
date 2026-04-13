@@ -9,6 +9,9 @@ and coordinate system tracking.
 import networkx as nx
 import scipy.spatial
 import numpy as np
+import osmnx as ox
+from vector_2026 import Vector
+from raster_2026 import Raster
 
 
 class RoutingNetwork:
@@ -148,3 +151,64 @@ class RoutingNetwork:
         self._epsg = epsg_code
 
     epsg = property(fget=_get_epsg, fset=_set_epsg)
+
+
+def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
+    """
+    Generate a regular mesh node grid from terrain raster.
+
+    For Phase 2: Creates placeholder mesh structure.
+    Phase 3: Will add terrain-based edge weights.
+    Phase 4: Will add water body penalties.
+
+    Args:
+        raster: Raster instance with DTM data
+        mesh_spacing: Distance between mesh nodes (meters in projection)
+        bbox: Optional bounding box (x_min, y_min, x_max, y_max)
+
+    Returns:
+        RoutingNetwork with regular mesh topology
+    """
+    routing_net = RoutingNetwork()
+    routing_net.epsg = raster.epsg
+
+    # Get raster extent and pixel size from world file
+    world_file = raster._world_file
+    pixel_width = world_file[0]
+    pixel_height = world_file[3]  # Negative
+
+    # Calculate pixel spacing for mesh nodes
+    pixel_spacing = mesh_spacing / abs(pixel_width)
+
+    # Generate grid of nodes
+    node_id_counter = 0
+    rows, cols = raster.shape
+
+    for row in range(0, rows, int(pixel_spacing)):
+        for col in range(0, cols, int(pixel_spacing)):
+            # Convert pixel to world coordinates using world file
+            x = world_file[4] + col * pixel_width + row * world_file[1]
+            y = world_file[5] + row * pixel_height + col * world_file[2]
+
+            # Add node to routing network
+            routing_net.add_node(node_id_counter, x, y)
+
+            # Connect to left neighbor
+            if col > 0:
+                left_id = node_id_counter - int(pixel_spacing)
+                edge_weight = mesh_spacing
+                routing_net.add_edge(node_id_counter, left_id, edge_weight,
+                                   length=edge_weight,
+                                   source='terrain')
+
+            # Connect to top neighbor
+            if row > 0:
+                top_id = node_id_counter - int(cols / pixel_spacing)
+                edge_weight = mesh_spacing
+                routing_net.add_edge(node_id_counter, top_id, edge_weight,
+                                   length=edge_weight,
+                                   source='terrain')
+
+            node_id_counter += 1
+
+    return routing_net
