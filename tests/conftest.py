@@ -14,6 +14,7 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _project_root)
 
 import pytest
+import numpy as np
 
 
 def pytest_configure(config):
@@ -27,4 +28,22 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "routing: Tests for routing network construction")
     config.addinivalue_line("markers", "osmnx: Tests for OSM data integration")
     config.addinivalue_line("markers", "trails: Tests for trail polyline conversion")
-    config.addinivalue_line("markers", "terrain: Tests for terrain mesh generation")
+    config.addinivalue_line("markers", "terrain: Mark test as Phase 3 terrain penalty test")
+
+
+@pytest.fixture
+def elevation_grid():
+    """
+    Mock elevation grid for terrain penalty testing.
+
+    Returns:
+        numpy.ndarray: 4x4 elevation grid in meters representing
+                      simple terrain with saddle point for testing
+                      slope calculations and routing decisions.
+    """
+    return np.array([
+        [100, 100, 100, 100],  # Row 0: flat top edge
+        [100, 150, 150, 100],  # Row 1: shallow climb from left
+        [100, 150, 150, 100],  # Row 2: shallow climb from left
+        [100, 100, 100, 100],  # Row 3: flat bottom edge
+    ])
