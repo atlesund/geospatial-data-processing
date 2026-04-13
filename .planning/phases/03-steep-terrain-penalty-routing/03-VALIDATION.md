@@ -2,8 +2,8 @@
 phase: 3
 slug: steep-terrain-penalty-routing
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-13
 ---
 
@@ -50,9 +50,9 @@ created: 2026-04-13
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_terrain_penalties.py` — stubs for COMP-02 (new test file)
-- [ ] `tests/conftest.py` — update with marker for Phase 3 terrain penalty tests
-- [ ] Elevation grid fixture using mock GrayscaleImage class
+- [x] `tests/test_terrain_penalties.py` — stubs for COMP-02 (new test file)
+- [x] `tests/conftest.py` — update with marker for Phase 3 terrain penalty tests
+- [x] Elevation grid fixture using mock GrayscaleImage class
 
 ---
 
@@ -66,11 +66,11 @@ created: 2026-04-13
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
