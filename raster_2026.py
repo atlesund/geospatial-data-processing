@@ -43,6 +43,40 @@ class Raster():
 
     shape = property(fget=_get_shape)
 
+    def get_elevation_at(self, world_x, world_y):
+        """
+        Get elevation value at world coordinates (x, y).
+
+        Uses world file affine transformation to convert world coordinates
+        to pixel indices, then retrieves elevation from grid.
+
+        Args:
+            world_x: X coordinate in the raster's EPSG coordinate system
+            world_y: Y coordinate in the raster's EPSG coordinate system
+
+        Returns:
+            Elevation value from grid, or None if outside bounds or grid not loaded
+        """
+        if self._elevation_grid is None or self._world_file is None:
+            return None
+
+        pixel_width, row_rotation, col_rotation = self._world_file[0:3]
+        pixel_height = self._world_file[3]
+        x_upper_left, y_upper_left = self._world_file[4:6]
+
+        # Inverse affine transformation to map world -> pixel
+        # Coordinate order from terrain_mesh_from_raster: lines 250-251
+        # x = x_upper_left + col * pixel_width + row * col_rotation
+        # y = y_upper_left + row * pixel_height + col * row_rotation
+        # Solve for col, row:
+        col = int((world_x - x_upper_left) // pixel_width)
+        row = int((world_y - y_upper_left) // pixel_height)
+
+        rows, cols = self.shape
+        if 0 <= row < rows and 0 <= col < cols:
+            return float(self._elevation_grid[row, col])
+        return None
+
     # User method
 
     def read_image(self):
