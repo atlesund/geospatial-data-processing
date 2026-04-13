@@ -75,7 +75,37 @@ def test_terrain_mesh_edge_topology():
         assert edge_data['source'] == 'terrain', "Edge source should be 'terrain'"
 
 
-# Test 4: Node coordinates projected correctly
+# Test: Node spacing matches mesh_spacing parameter
+def test_mesh_spacing():
+    """Test that node spacing matches the mesh_spacing parameter."""
+    import routing_2026
+    from raster_2026 import Raster
+
+    # Create mock Raster (100x100 pixels, 10m/pixel)
+    mock_raster = Raster()
+    mock_raster._world_file = [10.0, 0.0, 0.0, -10.0, 400000.0, 7000000.0]
+    mock_raster.epsg = 25832
+    mock_raster._photoimage = _MockPhotoImage(100, 100)
+
+    # Generate mesh with 20m spacing
+    mesh = routing_2026.terrain_mesh_from_raster(mock_raster, mesh_spacing=20)
+
+    # Should have 50x50 = 2500 nodes (100 pixels * 10m/pixel = 1000m, 1000m / 20m = 50 nodes per dimension)
+    num_nodes = mesh.graph.number_of_nodes()
+    expected_nodes = 2500
+    assert num_nodes == expected_nodes, f"Expected {expected_nodes} nodes with 20m spacing on 100x100 pixel grid, got {num_nodes}"
+
+    # Verify that nodes at adjacent positions are spaced at ~20m
+    # Node 0 is at (0,0), Node 1 is at (1,0) in the grid
+    node_0 = mesh.node_coords[0]
+    node_1 = mesh.node_coords[1]
+    dx = node_1[0] - node_0[0]
+    dy = node_1[1] - node_0[1]
+    distance = (dx**2 + dy**2)**0.5
+    assert abs(distance - 20.0) < 0.1, f"Expected node spacing ~20m, got {distance}"
+
+
+# Test: Node coordinates projected correctly
 def test_terrain_mesh_coordinate_projection():
     """Test that node coordinates are projected correctly using world file."""
     import routing_2026

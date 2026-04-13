@@ -238,7 +238,13 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
     node_id_counter = 0
     rows, cols = raster.shape
 
+    # Calculate number of nodes per row
+    nodes_per_row = 0
+    for col in range(0, cols, int(pixel_spacing)):
+        nodes_per_row += 1
+
     for row in range(0, rows, int(pixel_spacing)):
+        col_index = 0
         for col in range(0, cols, int(pixel_spacing)):
             # Convert pixel to world coordinates using world file
             x = world_file[4] + col * pixel_width + row * world_file[1]
@@ -247,23 +253,24 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
             # Add node to routing network
             routing_net.add_node(node_id_counter, x, y)
 
-            # Connect to left neighbor
-            if col > 0:
-                left_id = node_id_counter - int(pixel_spacing)
+            # Connect to left neighbor (same row, previous column)
+            if col_index > 0:
+                left_id = node_id_counter - 1
                 edge_weight = mesh_spacing
                 routing_net.add_edge(node_id_counter, left_id, edge_weight,
                                    length=edge_weight,
                                    source='terrain')
 
-            # Connect to top neighbor
+            # Connect to top neighbor (previous row, same column)
             if row > 0:
-                top_id = node_id_counter - int(cols / pixel_spacing)
+                top_id = node_id_counter - nodes_per_row
                 edge_weight = mesh_spacing
                 routing_net.add_edge(node_id_counter, top_id, edge_weight,
                                    length=edge_weight,
                                    source='terrain')
 
             node_id_counter += 1
+            col_index += 1
 
     return routing_net
 
