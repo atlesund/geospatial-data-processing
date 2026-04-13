@@ -289,6 +289,9 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
     routing_net = RoutingNetwork()
     routing_net.epsg = raster.epsg
 
+    # Track node elevations for slope calculation per D-01/D-02
+    node_elevations = {}  # node_id -> elevation in meters
+
     # Get raster extent and pixel size from world file
     world_file = raster._world_file
     pixel_width = world_file[0]
@@ -313,23 +316,59 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
             x = world_file[4] + col * pixel_width + row * world_file[1]
             y = world_file[5] + row * pixel_height + col * world_file[2]
 
+            # Retrieve elevation for slope calculation
+            world_x = x
+            world_y = y
+            elevation = raster.get_elevation_at(world_x, world_y)
+            node_elevations[node_id_counter] = elevation
+
             # Add node to routing network
             routing_net.add_node(node_id_counter, x, y)
 
-            # Connect to left neighbor (same row, previous column)
+            # Connect to left neighbor (same row, previous column) with terrain penalties
             if col_index > 0:
                 left_id = node_id_counter - 1
-                edge_weight = mesh_spacing
-                routing_net.add_edge(node_id_counter, left_id, edge_weight,
-                                   length=edge_weight,
+                elev1 = node_elevations[node_id_counter]
+                elev2 = node_elevations[left_id]
+
+                # Calculate terrain-aware weight per D-01/D-02/D-03/D-04/D-05/D-06
+                if elev1 is not None and elev2 is not None:
+                    terrain_weight, slope, penalty = calculate_terrain_weight(
+                        elev1, elev2, mesh_spacing
+                    )
+                else:
+                    # Fallback to uniform weight if elevation unavailable
+                    terrain_weight = mesh_spacing
+                    slope = 0.0
+                    penalty = 1.0
+
+                routing_net.add_edge(node_id_counter, left_id, terrain_weight,
+                                   length=mesh_spacing,
+                                   slope_angle=slope,
+                                   penalty_factor=penalty,
                                    source='terrain')
 
-            # Connect to top neighbor (previous row, same column)
+            # Connect to top neighbor (previous row, same column) with terrain penalties
             if row > 0:
                 top_id = node_id_counter - nodes_per_row
-                edge_weight = mesh_spacing
-                routing_net.add_edge(node_id_counter, top_id, edge_weight,
-                                   length=edge_weight,
+                elev1 = node_elevations[node_id_counter]
+                elev2 = node_elevations[top_id]
+
+                # Calculate terrain-aware weight per D-01/D-02/D-03/D-04/D-05/D-06
+                if elev1 is not None and elev2 is not None:
+                    terrain_weight, slope, penalty = calculate_terrain_weight(
+                        elev1, elev2, mesh_spacing
+                    )
+                else:
+                    # Fallback to uniform weight if elevation unavailable
+                    terrain_weight = mesh_spacing
+                    slope = 0.0
+                    penalty = 1.0
+
+                routing_net.add_edge(node_id_counter, top_id, terrain_weight,
+                                   length=mesh_spacing,
+                                   slope_angle=slope,
+                                   penalty_factor=penalty,
                                    source='terrain')
 
             node_id_counter += 1
