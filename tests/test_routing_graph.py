@@ -354,3 +354,129 @@ def test_connected_components():
     component_sizes.sort(reverse=True)
     assert component_sizes[0] == 3, f"Largest component should have 3 nodes, got {component_sizes[0]}"
     assert component_sizes[1] == 2, f"Smallest component should have 2 nodes, got {component_sizes[1]}"
+
+
+@pytest.mark.routing
+def test_merge_networks():
+    """Test: Create multiple RoutingNetwork instances, verify merge."""
+    import routing_2026
+
+    # Create three networks
+    net1 = routing_2026.RoutingNetwork()
+    net1.add_node(0, 450000.0, 6500000.0)
+    net1.add_node(1, 450100.0, 6500100.0)
+    net1.add_edge(0, 1, 100.0)
+    net1.epsg = 25832
+
+    net2 = routing_2026.RoutingNetwork()
+    net2.add_node(0, 450200.0, 6500000.0)
+    net2.add_node(1, 450300.0, 6500100.0)
+    net2.add_edge(0, 1, 150.0)
+    net2.epsg = 25832
+
+    net3 = routing_2026.RoutingNetwork()
+    net3.add_node(0, 450400.0, 6500000.0)
+    net3.add_node(1, 450500.0, 6500100.0)
+    net3.add_edge(0, 1, 200.0)
+    net3.epsg = 25832
+
+    # Merge networks with custom prefixes
+    merged = routing_2026.merge_networks([net1, net2, net3], prefix_mapping=['trail_', 'osm_', 'mesh_'])
+
+    # Verify merge successful
+    assert isinstance(merged, routing_2026.RoutingNetwork), "Should return RoutingNetwork instance"
+    assert merged.graph.number_of_nodes() == 6, f"Should have 6 nodes, got {merged.graph.number_of_nodes()}"
+    assert merged.graph.number_of_edges() == 3, f"Should have 3 edges, got {merged.graph.number_of_edges()}"
+    assert merged.epsg == 25832, f"EPSG should be 25832, got {merged.epsg}"
+
+    # Verify all prefixed nodes exist
+    node_ids = list(merged.graph.nodes())
+    assert 'trail_0' in node_ids, "trail_0 should exist"
+    assert 'trail_1' in node_ids, "trail_1 should exist"
+    assert 'osm_0' in node_ids, "osm_0 should exist"
+    assert 'osm_1' in node_ids, "osm_1 should exist"
+    assert 'mesh_0' in node_ids, "mesh_0 should exist"
+    assert 'mesh_1' in node_ids, "mesh_1 should exist"
+
+
+@pytest.mark.routing
+def test_node_prefix_collision():
+    """Test: Verify prefixed IDs don't collide."""
+    import routing_2026
+
+    # Create two networks with identical node IDs
+    net1 = routing_2026.RoutingNetwork()
+    net1.add_node(0, 450000.0, 6500000.0)
+    net1.add_node(1, 450100.0, 6500100.0)
+    net1.add_edge(0, 1, 100.0)
+    net1.epsg = 25832
+
+    net2 = routing_2026.RoutingNetwork()
+    net2.add_node(0, 450200.0, 6500000.0)
+    net2.add_node(1, 450300.0, 6500100.0)
+    net2.add_edge(0, 1, 100.0)
+    net2.epsg = 25832
+
+    # Merge with prefixes
+    merged = routing_2026.merge_networks([net1, net2], prefix_mapping=['trail_', 'osm_'])
+
+    # Verify no collisions - should have 4 distinct nodes
+    assert merged.graph.number_of_nodes() == 4, f"Should have 4 nodes without collision, got {merged.graph.number_of_nodes()}"
+
+    # Verify each original node exists with correct prefix
+    node_ids = list(merged.graph.nodes())
+    assert 'trail_0' in node_ids, "trail_0 should exist"
+    assert 'trail_1' in node_ids, "trail_1 should exist"
+    assert 'osm_0' in node_ids, "osm_0 should exist"
+    assert 'osm_1' in node_ids, "osm_1 should exist"
+
+    # Verify no unprefixed nodes remain (no collision)
+    unprefixed_nodes = [node_id for node_id in node_ids if isinstance(node_id, int)]
+    assert len(unprefixed_nodes) == 0, f"No unprefixed nodes should remain, got {unprefixed_nodes}"
+
+    # Verify edges use prefixed nodes
+    edges = list(merged.graph.edges())
+    trail_edge = ('trail_0', 'trail_1')
+    osm_edge = ('osm_0', 'osm_1')
+    assert trail_edge in edges, "Trail edge should use prefixed nodes"
+    assert osm_edge in edges, "OSM edge should use prefixed nodes"
+
+
+@pytest.mark.routing
+def test_epsg_validation():
+    """Test: Verify ValueError raised for mismatched EPSG."""
+    import routing_2026
+
+    # Create two networks with different EPSG codes
+    net1 = routing_2026.RoutingNetwork()
+    net1.add_node(0, 450000.0, 6500000.0)
+    net1.add_node(1, 450100.0, 6500100.0)
+    net1.add_edge(0, 1, 100.0)
+    net1.epsg = 25832  # UTM 32V
+
+    net2 = routing_2026.RoutingNetwork()
+    net2.add_node(0, 450200.0, 6500000.0)
+    net2.add_node(1, 450300.0, 6500100.0)
+    net2.add_edge(0, 1, 100.0)
+    net2.epsg = 4326  # WGS84
+
+    # Verify ValueError raised for mismatched EPSG
+    try:
+        merged = routing_2026.merge_networks([net1, net2], prefix_mapping=['trail_', 'osm_'])
+        assert False, "Should raise ValueError for mismatched EPSG codes"
+    except ValueError as e:
+        error_msg = str(e)
+        assert "EPSG codes" in error_msg, f"Error message should mention EPSG codes, got: {error_msg}"
+        assert "25832" in error_msg, f"Error should mention EPSG 25832, got: {error_msg}"
+        assert "4326" in error_msg, f"Error should mention EPSG 4326, got: {error_msg}"
+
+    # Verify merge succeeds with matching EPSG codes
+    net2.epsg = 25832  # Change to match net1
+    merged = routing_2026.merge_networks([net1, net2], prefix_mapping=['trail_', 'osm_'])
+    assert merged.graph.number_of_nodes() == 4, f"Should merge successfully with matching EPSG, got {merged.graph.number_of_nodes()} nodes"
+
+    # Verify merge succeeds when all EPSG codes are None
+    net1.epsg = None
+    net2.epsg = None
+    merged = routing_2026.merge_networks([net1, net2], prefix_mapping=['trail_', 'osm_'])
+    assert merged.graph.number_of_nodes() == 4, f"Should merge successfully with None EPSG, got {merged.graph.number_of_nodes()} nodes"
