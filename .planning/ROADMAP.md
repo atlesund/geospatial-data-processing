@@ -78,13 +78,13 @@ Plans:
   1. System applies penalties for water body crossings (lakes, rivers, fjords) in route computation
   2. System computes routes that minimize water crossings while finding optimal paths
   3. System produces routes that cross water only when necessary with appropriate detours
-**Plans**: TBD
+**Plans**: 4
 
 Plans:
-- [ ] 04-01: Integrate hydrography data for water body detection
-- [ ] 04-02: Implement water body penalty weighting system
-- [ ] 04-03: Add hybrid cost function combining steep terrain and water penalties
-- [ ] 04-04: Integrate path finding algorithm (A*) with water penalty weights
+- [ ] 04-01: Integrate osmnx API to query OpenStreetMap water features (lakes, rivers, fjords)
+- [ ] 04-02: Implement water crossing detection via point-in-polygon and line-intersection checks
+- [ ] 04-03: Add combined terrain × water multiplicative penalty calculation in mesh generation
+- [ ] 04-04: Validate water-aware routing through integration testing
 
 ### Phase 5: Route Visualization & Export
 **Goal**: Users can view computed routes and export them for GPS navigation device use
@@ -112,6 +112,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Map Interaction & User Selection | 3/3 | Complete | 2026-04-12 |
 | 2. Routing Network Construction | 4/4 | Complete | 2026-04-13 |
-| 3. Steep Terrain Penalty Routing | 0/4 | Not started | - |
+| 3. Steep Terrain Penalty Routing | 4/4 | Complete | 2026-04-13 |
 | 4. Water Body Penalty Routing | 0/4 | Not started | - |
 | 5. Route Visualization & Export | 0/4 | Not started | - |
