@@ -11,6 +11,7 @@ import scipy.spatial
 import numpy as np
 import osmnx as ox
 import math
+import geopandas as gpd
 from vector_2026 import Vector
 from raster_2026 import Raster
 
@@ -268,6 +269,57 @@ def calculate_terrain_weight(elev1, elev2, edge_length,
     weight = edge_length * penalty_factor
 
     return (weight, slope_degrees, penalty_factor)
+
+
+def load_water_features(bbox, target_epsg, timeout=30):
+    """
+    Query and project water features for water penalty routing.
+
+    Implements per D-01/D-02:
+    - Query OpenStreetMap water features via osmnx.features_from_bbox()
+    - Query at route planning time (dynamic, not pre-download)
+    - Separate queries for lakes (polygons) and rivers (linestrings)
+    - Project from EPSG:4326 to target CRS for intersection with terrain mesh
+
+    Args:
+        bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
+        target_epsg: Target EPSG code (e.g., 25832 for UTM 32V)
+        timeout: Timeout for osmnx query in seconds (default: 30)
+
+    Returns:
+        Tuple (lakes_gdf, rivers_gdf) - GeoDataFrames projected to target CRS
+        Returns (None, None) on network failure with warning logged
+    """
+    west, south, east, north = bbox
+
+    # Validate bbox format
+    assert west < east, f"bbox west ({west}) must be less than east ({east})"
+    assert south < north, f"bbox south ({south}) must be less than north ({north})"
+
+    try:
+        # Query lakes with tags: {'natural': 'water'}
+        lakes = ox.features_from_bbox(
+            (west, south, east, north),
+            tags={'natural': 'water'}
+        )
+
+        # Query rivers with tags: {'waterway': ['river', 'stream', 'canal']}
+        rivers = ox.features_from_bbox(
+            (west, south, east, north),
+            tags={'waterway': ['river', 'stream', 'canal']}
+        )
+
+        # Project to target CRS
+        lakes_gdf = lakes.to_crs(f"EPSG:{target_epsg}")
+        rivers_gdf = rivers.to_crs(f"EPSG:{target_epsg}")
+
+        return (lakes_gdf, rivers_gdf)
+
+    except Exception as e:
+        # Graceful fallback on network failure
+        print(f"Warning: Failed to query water features: {e}")
+        print("Continuing without water penalty mode")
+        return (None, None)
 
 
 def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):

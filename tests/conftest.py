@@ -30,6 +30,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "trails: Tests for trail polyline conversion")
     config.addinivalue_line("markers", "terrain: Mark test as Phase 3 terrain penalty test")
 
+    # Phase 4 markers
+    config.addinivalue_line("markers", "water: Tests for water body penalty routing")
+
 
 @pytest.fixture
 def elevation_grid():
