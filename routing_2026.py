@@ -369,3 +369,53 @@ def _calculate_polyline_length(polyline):
         segment_length = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
         total_length += segment_length
     return total_length
+
+
+def merge_networks(networks, prefix_mapping=None):
+    """
+    Merge multiple routing networks into unified graph.
+
+    Args:
+        networks: List of RoutingNetwork instances to merge
+        prefix_mapping: Optional list of prefixes for node IDs.
+                       If None, uses ['trail_', 'osm_', 'mesh_', ...]
+
+    Returns:
+        Unified RoutingNetwork with all merged nodes and edges
+
+    Note: All networks must have the same EPSG code for valid merge.
+          Raises ValueError if EPSG codes differ.
+    """
+    if not networks:
+        return None
+
+    # Validate EPSG codes match
+    epsg_values = set(net.epsg for net in networks if net.epsg is not None)
+    if len(epsg_values) > 1:
+        raise ValueError(f"Cannot merge networks with different EPSG codes: {epsg_values}")
+
+    # Generate prefixes if not provided
+    if prefix_mapping is None:
+        prefix_mapping = [f'n{i}_' for i in range(len(networks))]
+
+    # Create merged network
+    merged_net = RoutingNetwork()
+    if len(networks) > 0 and networks[0].epsg is not None:
+        merged_net.epsg = networks[0].epsg
+
+    # Merge all networks
+    for network, prefix in zip(networks, prefix_mapping):
+        # Add nodes with prefixed IDs
+        for node_id, coord in network.node_coords.items():
+            prefixed_id = f"{prefix}{node_id}"
+            merged_net.add_node(prefixed_id, coord[0], coord[1])
+
+        # Add edges with prefixed node IDs
+        for u, v, data in network.graph.edges(data=True):
+            prefixed_u = f"{prefix}{u}"
+            prefixed_v = f"{prefix}{v}"
+            weight = data.get('weight', 1.0)
+            attrs = {k: v for k, v in data.items() if k != 'weight'}
+            merged_net.add_edge(prefixed_u, prefixed_v, weight, **attrs)
+
+    return merged_net
