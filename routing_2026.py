@@ -12,6 +12,7 @@ import numpy as np
 import osmnx as ox
 import math
 import geopandas as gpd
+from shapely.geometry import Point, LineString
 from vector_2026 import Vector
 from raster_2026 import Raster
 
@@ -320,6 +321,68 @@ def load_water_features(bbox, target_epsg, timeout=30):
         print(f"Warning: Failed to query water features: {e}")
         print("Continuing without water penalty mode")
         return (None, None)
+
+
+def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
+                         lake_penalty=10.0, river_penalty=5.0, fjord_penalty=50.0):
+    """
+    Detect water body crossing for terrain edge using geometry checks.
+
+    Implements per D-03/D-04/D-05:
+    - Point-in-polygon check for lakes (edge midpoint within lake polygon)
+    - Line-intersection check for rivers (edge linestring crosses river linestring)
+    - Fjord classification via OSM name tag substring matching ('fjord' in name)
+    - Penalty factors: lakes=10×, rivers=5×, fjords=50×
+
+    Args:
+        edge_start: Tuple (x, y) of edge start point in mesh CRS
+        edge_end: Tuple (x, y) of edge end point in mesh CRS
+        lakes_gdf: GeoDataFrame of lake polygons (can be None if query failed)
+        rivers_gdf: GeoDataFrame of river linestrings (can be None if query failed)
+        lake_penalty: Penalty factor for lake crossings (default: 10.0)
+        river_penalty: Penalty factor for river crossings (default: 5.0)
+        fjord_penalty: Penalty factor for fjord crossings (default: 50.0)
+
+    Returns:
+        Tuple (water_type, penalty_factor) - (None, 1.0) if no crossing
+        water_type: String ('lake', 'fjord', 'river', or None)
+        penalty_factor: Float (10.0 for lakes, 50.0 for fjords, 5.0 for rivers, 1.0 for none)
+    """
+    # Handle None inputs - fallback to no water penalty
+    if lakes_gdf is None and rivers_gdf is None:
+        return (None, 1.0)
+
+    x1, y1 = edge_start
+    x2, y2 = edge_end
+
+    # Calculate edge midpoint
+    midpoint = Point(((x1 + x2) / 2, (y1 + y2) / 2))
+
+    # Check lakes first (polygons)
+    if lakes_gdf is not None:
+        for idx, lake_row in lakes_gdf.iterrows():
+            lake_geom = lake_row.geometry
+
+            # Check for point-in-polygon
+            if midpoint.within(lake_geom):
+                # Check for fjord classification
+                name = lake_row.get('name', '')
+                if name and 'fjord' in str(name).lower():
+                    return ('fjord', fjord_penalty)
+                return ('lake', lake_penalty)
+
+    # Check rivers (linestrings)
+    if rivers_gdf is not None:
+        edge_line = LineString([edge_start, edge_end])
+        for idx, river_row in rivers_gdf.iterrows():
+            river_geom = river_row.geometry
+
+            # Check for line-intersection
+            if edge_line.intersects(river_geom):
+                return ('river', river_penalty)
+
+    # No water crossing detected
+    return (None, 1.0)
 
 
 def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
