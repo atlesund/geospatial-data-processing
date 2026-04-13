@@ -10,6 +10,7 @@ import networkx as nx
 import scipy.spatial
 import numpy as np
 import osmnx as ox
+import math
 from vector_2026 import Vector
 from raster_2026 import Raster
 
@@ -205,6 +206,68 @@ def load_osmnx_trails(bbox, epsg=25832):
                            source='osm')
 
     return routing_net
+
+
+def calculate_terrain_weight(elev1, elev2, edge_length,
+                            threshold_degrees=20.0, slope_multiplier=0.2):
+    """
+    Calculate terrain-aware edge weight with slope-based penalties.
+
+    Implements terrain routing per locked decisions D-01 through D-06:
+    - D-01/D-02: Slope = atan(elevation_diff / edge_length), converted to degrees
+    - D-03/D-04: 20° threshold - penalty only applies when slope > 20°
+    - D-05: Linear scaling: penalty_factor = 1.0 + k*(slope - threshold)
+    - D-06: Multiplicative weight: final_weight = edge_length × penalty_factor
+
+    Args:
+        elev1: Elevation at first node (meters)
+        elev2: Elevation at second node (meters)
+        edge_length: Horizontal distance between nodes (meters)
+        threshold_degrees: Slope threshold for penalty application (default: 20.0)
+        slope_multiplier: Linear scaling factor (default: 0.2)
+
+    Returns:
+        Tuple (weight, slope_degrees, penalty_factor):
+        - weight: Final edge weight (edge_length × penalty_factor)
+        - slope_degrees: Calculated slope angle in degrees
+        - penalty_factor: Applied penalty (1.0 to 100.0)
+
+    Raises:
+        ValueError: If edge_length <= 0 or elevation values are invalid
+    """
+    # Guard clause: edge_length == 0 (T-3-05)
+    if edge_length == 0:
+        return (0.0, 0.0, 1.0)
+
+    # Validate edge_length > 0 (T-3-08)
+    if edge_length < 0:
+        raise ValueError("edge_length must be positive")
+
+    # Validate elevation values are finite (T-3-06)
+    if not (math.isfinite(elev1) and math.isfinite(elev2)):
+        raise ValueError("elevation values must be finite numbers")
+
+    # Calculate elevation difference (D-01)
+    elevation_diff = abs(elev2 - elev1)
+
+    # Calculate slope angle in degrees (D-02)
+    slope_radians = math.atan(elevation_diff / edge_length)
+    slope_degrees = math.degrees(slope_radians)
+
+    # Apply penalty if slope exceeds threshold (D-03/D-04)
+    if slope_degrees <= threshold_degrees:
+        penalty_factor = 1.0
+    else:
+        # Linear scaling formula (D-05)
+        penalty_factor = 1.0 + slope_multiplier * (slope_degrees - threshold_degrees)
+
+        # Clamp penalty factor to max 100 to prevent DoS (T-3-07)
+        penalty_factor = min(100.0, penalty_factor)
+
+    # Multiplicative weight calculation (D-06)
+    weight = edge_length * penalty_factor
+
+    return (weight, slope_degrees, penalty_factor)
 
 
 def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
