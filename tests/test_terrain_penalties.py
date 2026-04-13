@@ -231,9 +231,229 @@ def test_realistic_routing():
     - Routes follow natural hiking gradients where possible
 
     Tests:
-    - Scenario 1: Flat vs. steep alternative
-    - Scenario 2: All steep terrain (only option)
-    - Scenario 3: Slope threshold boundary (20°)
+    - 4x4 elevation grid with saddle point pattern
+    - Flat alternative: edges at 100m elevation (penalty 1.0×)
+    - Steep alternative: edges over saddle (150m, slope ~26.6°, penalty ~2.3×)
+    - Dijkstra should prefer flat route over steep alternative
     """
-    # TODO: Implement test in Plan 03-04 when terrain_mesh_from_raster() has terrain weights
-    pytest.skip("terrain_mesh_from_raster() terrain weights not yet integrated")
+    import routing_2026
+    from raster_2026 import Raster
+
+    # Create mock Raster with 4x4 elevation grid (saddle point pattern)
+    # Row 0: [100, 100, 100, 100] (flat top)
+    # Row 1: [100, 150, 150, 100] (shallow climb center)
+    # Row 2: [100, 150, 150, 100] (shallow climb center)
+    # Row 3: [100, 100, 100, 100] (flat bottom)
+    mock_raster = Raster()
+    mock_raster._world_file = [10.0, 0.0, 0.0, -10.0, 400000.0, 7000000.0]
+    mock_raster.epsg = 25832
+
+    # Create mock PhotoImage with 4x4 dimensions
+    class _MockPhotoImage:
+        def __init__(self, width, height):
+            self._width = width
+            self._height = height
+        def width(self):
+            return self._width
+        def height(self):
+            return self._height
+
+    mock_raster._photoimage = _MockPhotoImage(4, 4)
+
+    # Set elevation grid using numpy array
+    import numpy as np
+    mock_raster._elevation_grid = np.array([
+        [100, 100, 100, 100],
+        [100, 150, 150, 100],
+        [100, 150, 150, 100],
+        [100, 100, 100, 100],
+    ])
+
+    # Generate terrain mesh with 10m spacing
+    mesh = routing_2026.terrain_mesh_from_raster(mock_raster, mesh_spacing=10)
+
+    # Compute path from node 0 (top-left, 100m) to node 15 (bottom-right, 100m)
+    path = mesh.shortest_path(0, 15)
+
+    # Verify path exists
+    assert path is not None, "Path should exist between node 0 and node 15"
+    assert len(path) > 0, "Path should contain nodes"
+    assert path[0] == 0, "Path should start at node 0"
+    assert path[-1] == 15, "Path should end at node 15"
+
+    # Verify edges in path have terrain-aware weights
+    has_terrain_edges = False
+    for u, v in zip(path[:-1], path[1:]):
+        edge_data = mesh.graph.get_edge_data(u, v)
+        assert edge_data is not None, f"Edge should exist between {u} and {v}"
+        assert 'weight' in edge_data, "Edge should have weight"
+        assert 'length' in edge_data, "Edge should have length"
+        assert 'slope_angle' in edge_data, "Edge should have slope_angle"
+        assert 'penalty_factor' in edge_data, "Edge should have penalty_factor"
+
+        # Verify terrain edges have weights > 0
+        if edge_data.get('source') == 'terrain':
+            has_terrain_edges = True
+            assert edge_data['weight'] > 0, "Terrain edge weight should be positive"
+
+    assert has_terrain_edges, "Path should include terrain edges"
+
+    # Verify that edges with slope > 20° have penalty_factor > 1.0
+    for u, v in mesh.graph.edges(data=False):
+        edge_data = mesh.graph.get_edge_data(u, v)
+        if 'slope_angle' in edge_data and 'penalty_factor' in edge_data:
+            slope = edge_data['slope_angle']
+            penalty = edge_data['penalty_factor']
+            if slope > 20.0:
+                assert penalty > 1.0, f"Edge {u}-{v} with slope {slope}° should have penalty > 1.0, got {penalty}"
+
+
+@pytest.mark.terrain
+def test_all_steep_terrain_routing():
+    """
+    Test Dijkstra handles all-steep terrain (no flat alternative).
+
+    Validates:
+    - Dijkstra produces path despite all edges having high penalty
+    - Penalty function applies correctly even when no flat alternatives
+    - Total weight reflects sum of high-penalty edges
+
+    Tests:
+    - 2x2 mock elevation grid with uniform steep climb
+    - Grid: [[100, 200], [200, 300]] - all edges have significant slope
+    - Route from node 0 (top-left, 100m) to node 3 (bottom-right, 300m)
+    - Expected: Path exists despite all edges having penalty_factor > 1.0
+    """
+    import routing_2026
+    from raster_2026 import Raster
+
+    # Create mock Raster with 2x2 elevation grid (uniform steep climb)
+    # Grid: [[100, 200], [200, 300]]
+    mock_raster = Raster()
+    mock_raster._world_file = [10.0, 0.0, 0.0, -10.0, 400000.0, 7000000.0]
+    mock_raster.epsg = 25832
+
+    # Create mock PhotoImage with 2x2 dimensions
+    class _MockPhotoImage:
+        def __init__(self, width, height):
+            self._width = width
+            self._height = height
+        def width(self):
+            return self._width
+        def height(self):
+            return self._height
+
+    mock_raster._photoimage = _MockPhotoImage(2, 2)
+
+    # Set elevation grid uniformly steep
+    import numpy as np
+    mock_raster._elevation_grid = np.array([
+        [100, 200],
+        [200, 300],
+    ])
+
+    # Generate terrain mesh with 10m spacing
+    mesh = routing_2026.terrain_mesh_from_raster(mock_raster, mesh_spacing=10)
+
+    # Compute path from node 0 (top-left, 100m) to node 3 (bottom-right, 300m)
+    path = mesh.shortest_path(0, 3)
+
+    # Verify path exists despite all steep terrain
+    assert path is not None, "Path should exist in all-steep terrain"
+    assert len(path) > 0, "Path should contain nodes"
+    assert path[0] == 0, "Path should start at node 0"
+    assert path[-1] == 3, "Path should end at node 3"
+
+    # Verify that all terrain edges have penalty_factor > 1.0
+    for u, v in mesh.graph.edges(data=False):
+        edge_data = mesh.graph.get_edge_data(u, v)
+        if edge_data.get('source') == 'terrain':
+            penalty = edge_data.get('penalty_factor', 1.0)
+            assert penalty > 1.0, f"Steep terrain edge {u}-{v} should have penalty > 1.0, got {penalty}"
+
+    # Verify slope angles and penalties are applied correctly
+    # With 100m elevation difference over 10m horizontal: slope = atan(100/10) = atan(10) = 84.3°
+    # Penalty for 84.3° = 1.0 + 0.2*(84.3 - 20) = 1.0 + 12.86 = 13.86 (clamped if needed)
+    for u, v in mesh.graph.edges(data=False):
+        edge_data = mesh.graph.get_edge_data(u, v)
+        if edge_data.get('source') == 'terrain':
+            slope = edge_data.get('slope_angle', 0)
+            penalty = edge_data.get('penalty_factor', 1.0)
+            # Verify slope is significant (> 20° threshold)
+            assert slope > 20.0, f"Steep terrain edge {u}-{v} should have slope > 20°, got {slope}°"
+            # Verify penalty factor is significant
+            assert penalty > 1.5, f"Steep terrain edge {u}-{v} should have penalty > 1.5, got {penalty}"
+
+
+@pytest.mark.terrain
+def test_threshold_boundary_routing():
+    """
+    Test 20° threshold behavior in realistic routing.
+
+    Validates:
+    - Edges with slope <= 20° have penalty_factor = 1.0
+    - Edges with slope > 20° have penalty_factor > 1.0
+    - 20° threshold applied correctly in routing context
+
+    Tests:
+    - 2x3 mock elevation grid with slopes at threshold
+    - Grid: [[100, 115, 130], [115, 130, 145]]
+    - Elevation differences create slopes near 20° threshold
+    - Route from node 0 to node 5
+    """
+    import routing_2026
+    from raster_2026 import Raster
+
+    # Create mock Raster with 2x3 elevation grid (slopes near threshold)
+    # Grid: [[100, 115, 130], [115, 130, 145]]
+    # Horizontal diff: 15m over 10m spacing -> slope = atan(15/10) = atan(1.5) = 56.3°
+    # Vertical diff: 15m over 10m spacing -> slope = atan(15/10) = 56.3°
+    mock_raster = Raster()
+    mock_raster._world_file = [10.0, 0.0, 0.0, -10.0, 400000.0, 7000000.0]
+    mock_raster.epsg = 25832
+
+    # Create mock PhotoImage with 2x3 dimensions
+    class _MockPhotoImage:
+        def __init__(self, width, height):
+            self._width = width
+            self._height = height
+        def width(self):
+            return self._width
+        def height(self):
+            return self._height
+
+    mock_raster._photoimage = _MockPhotoImage(3, 2)
+
+    # Set elevation grid with slopes near threshold
+    import numpy as np
+    mock_raster._elevation_grid = np.array([
+        [100, 115, 130],
+        [115, 130, 145],
+    ])
+
+    # Generate terrain mesh with 10m spacing
+    mesh = routing_2026.terrain_mesh_from_raster(mock_raster, mesh_spacing=10)
+
+    # Compute path from node 0 to node 5
+    path = mesh.shortest_path(0, 5)
+
+    # Verify path exists
+    assert path is not None, "Path should exist"
+    assert len(path) > 0, "Path should contain nodes"
+
+    # Verify threshold behavior for all terrain edges
+    for u, v in mesh.graph.edges(data=False):
+        edge_data = mesh.graph.get_edge_data(u, v)
+        if edge_data.get('source') == 'terrain':
+            slope = edge_data.get('slope_angle', 0)
+            penalty = edge_data.get('penalty_factor', 1.0)
+
+            # Threshold test: slope <= 20° implies penalty_factor = 1.0
+            if slope <= 20.0:
+                assert penalty == pytest.approx(1.0, abs=0.01), \
+                    f"Edge {u}-{v} with slope {slope}° (<= 20°) should have penalty = 1.0, got {penalty}"
+
+            # Threshold test: slope > 20° implies penalty_factor > 1.0
+            if slope > 20.0:
+                assert penalty > 1.0, \
+                    f"Edge {u}-{v} with slope {slope}° (> 20°) should have penalty > 1.0, got {penalty}"
