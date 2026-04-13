@@ -3,6 +3,7 @@ import json
 import tkinter
 
 import utilities_2026 as utilities
+import numpy as np
 
 
 class Raster():
@@ -11,6 +12,7 @@ class Raster():
         self._epsg = None # Identifies a coordinate reference system (CRS)
         self._photoimage = None # Tkinter image format
         self._world_file = None
+        self._elevation_grid = None
 
     def __repr__(self):
         report = {
@@ -48,7 +50,7 @@ class Raster():
 
         if filename is None:
             return
-        
+
         # Update Raster() instance
 
         self._photoimage = tkinter.PhotoImage(file=filename)
@@ -57,3 +59,11 @@ class Raster():
         # World file
         world_file = utilities.read_world_file(filename)
         self._world_file = world_file
+
+        # Load elevation grid using Pillow for terrain analysis
+        from PIL import Image
+        try:
+            self._elevation_grid = np.array(Image.open(filename))
+        except Exception as e:
+            self._elevation_grid = None
+            utilities.warning(f'Failed to load elevation grid: {e}')
