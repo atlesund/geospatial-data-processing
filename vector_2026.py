@@ -278,7 +278,7 @@ class Vector():
         # Check status
 
         if validation['status'] is False:
-            utilities.warning(validation['messages'])
+            utilities.warning(validation['message'])
             return
         
         # Check labels (fields)

@@ -1,4 +1,5 @@
-pyproj
 numpy
-python-math
+pyproj
 pyshp
+folium
+pytest>=8.0.0

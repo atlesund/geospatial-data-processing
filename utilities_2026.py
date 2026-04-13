@@ -737,7 +737,7 @@ def intersect(p_1, p_2, p_3, p_4):
 
     if u_a >= 0.0 and u_a <= 1.0 and u_b >= 0.0 and u_b <= 1.0:
         type_intersection = True # The segments intersect
-    elif (u_a >= 0.0 and u_a) <= 1.0 and (u_b < 0.0 or u_b > 1.0):
+    elif (u_a >= 0.0 and u_a <= 1.0) and (u_b < 0.0 or u_b > 1.0):
         type_intersection = None # The lines intersect but not the segments
     else:
         type_intersection = False # The lines do not intersect
