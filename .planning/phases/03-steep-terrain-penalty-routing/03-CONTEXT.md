@@ -1,6 +1,7 @@
 # Phase 3: Steep Terrain Penalty Routing - Context
 
 **Gathered:** 2026-04-13
+**Updated:** 2026-04-13
 **Status:** Ready for planning
 
 ## Phase Boundary
@@ -20,10 +21,15 @@ Apply terrain-based penalties to route computation to avoid unrealistic vertical
 - **D-04:** 20 degrees chosen as aggressive threshold. Allows moderately steep terrain where beneficial while avoiding unrealistic vertical climbs.
 
 ### Penalty Function
-- **D-05:** Step function. No penalty below threshold (≤20°), fixed penalty above threshold (>20°). Simple and predictable—routes either avoid steep terrain or accept the fixed cost.
+- **D-05:** Linear scaling. Penalty_factor = 1.0 for slope ≤ 20°. For slope > 20°, penalty_factor = 1.0 + k × (slope - 20°) where k = 0.2 (slope multiplier). This creates smooth gradients with realistic hiking effort scaling:
+  - 25° slope: penalty_factor = 2.0 (2× harder)
+  - 35° slope: penalty_factor = 4.0 (4× harder)
+  - 45° slope: penalty_factor = 6.0 (6× harder)
 
 ### Weight Integration
-- **D-06:** Multiplicative with 5.0 factor (Claude's discretion). Final weight = distance × penalty_factor where penalty_factor = 1.0 for slope ≤20°, penalty_factor = 5.0 for slope >20°. This pairs well with the step function and represents intuitive multipliers like "5 times harder to hike."
+- **D-06:** Multiplicative. Final weight = distance × penalty_factor. Pairs well with continuous linear scaling. Penalty_factor applies per edge, not per whole route. Represents "times harder to hike" which is intuitive:
+  - Flat terrain (≤20°): weight = distance × 1.0 = distance
+  - Steep terrain (>20°): weight = distance × (1.0 + 0.2 × (slope - 20°))
 
 ### Pathfinding Algorithm
 - **D-07:** Continue with Dijkstra on updated weights. No change to existing `shortest_path()` implementation. Dijkstra with multiplicative terrain weights provides sufficient performance and correctness for this scope.
@@ -49,6 +55,7 @@ Apply terrain-based penalties to route computation to avoid unrealistic vertical
 ### Terrain Analysis Background
 - Norway DTM50 data resolution: 50m pixel spacing → slope calculation uses 50m horizontal distance basis
 - Typical hiking steepness thresholds: 10° (conservative), 15° (common), 20° (aggressive) → user chose 20°
+- Linear scaling with k=0.2: penalty scales from 1.0 at 20° to 6.0 at 45° (extreme steepness)
 
 No external specs — requirements fully captured in decisions above
 
@@ -65,15 +72,20 @@ No external specs — requirements fully captured in decisions above
 - Network priority: use scipy.spatial.KDTree for O(log n) spatial queries rather than O(n) scans
 
 ### Integration Points
-- `terrain_mesh_from_raster()` function in `routing_2026.py`: Flow currently writes `edge_weight = mesh_spacing` for all edges. Phase 3 will replace with slope-based weight calculation.
+- `terrain_mesh_from_raster()` function in `routing_2026.py`: Flow currently writes `edge_weight = mesh_spacing` for all edges. Phase 3 will replace with slope-based weight calculation using penalty_factor.
 - Edge attribute structure: existing edges store `weight`, `length`, `source`. Phase 3 should add `slope_angle`, `penalty_factor` for traceability.
 - Dijkstra shortest path expects 'weight' attribute — terrain penalties integrate by updating this attribute, not changing algorithm.
+- Penalty applies per edge, not per whole route: each edge's weight = edge_length × penalty_factor
 
 ## Specific Ideas
 
 - Norway山区 (mountainous terrain) has steep sections that realistically should be avoided or heavily penalized in hiking routes
 - 20 degree threshold is aggressive but appropriate for Norway — hikers can handle moderate steepness but avoid unrealistic climbs
-- 5.0 penalty factor means steep terrain costs 5 times more than flat terrain for the same distance — routes will detour significantly to avoid steep climbs
+- Continuous linear scaling with k=0.0.2 provides smooth transitions:
+  - 25° slopes cost 2× (reasonably challenging)
+  - 35° slopes cost 4× (significantly harder)
+  - 45° slopes cost 6× (extreme, should be avoided)
+- Multiplicative scaling represents "times harder to hike" which aligns with realistic hiking behavior
 
 ## Deferred Ideas
 
@@ -83,3 +95,4 @@ None — discussion stayed within phase scope
 
 *Phase: 03-steep-terrain-penalty-routing*
 *Context gathered: 2026-04-13*
+*Updated: 2026-04-13 (penalty function changed to continuous linear scaling)*
