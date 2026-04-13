@@ -186,3 +186,126 @@ def test_find_nearest_node_empty_graph():
     # Verify returns (None, inf) for empty graph
     assert nearest_node_id is None, f"Nearest node should be None for empty graph, got {nearest_node_id}"
     assert distance == float('inf'), f"Distance should be inf for empty graph"
+
+
+@pytest.mark.routing
+def test_polylines_to_graph_returns_routing_network():
+    """Test 8: polylines_to_graph returns RoutingNetwork instance."""
+    import routing_2026
+    import vector_2026
+
+    # Create mock Vector with POLYLINE geometry
+    trails = vector_2026.Vector(geometry='POLYLINE')
+
+    # Manually set coordinates (simulating loaded trail data)
+    trails._coordinates = [
+        [(450000.0, 6500000.0), (450100.0, 6500100.0)],  # Trail 0
+        [(450200.0, 6500000.0), (450300.0, 6500100.0)],  # Trail 1
+    ]
+    trails._epsg = 25832
+
+    # Convert polylines to graph
+    routing_net = routing_2026.polylines_to_graph(trails)
+
+    # Verify returns RoutingNetwork instance
+    assert isinstance(routing_net, routing_2026.RoutingNetwork), "Should return RoutingNetwork instance"
+
+    # Verify EPSG is set
+    assert routing_net.epsg == 25832, f"EPSG should be 25832, got {routing_net.epsg}"
+
+
+@pytest.mark.routing
+def test_line_endpoints_converted_to_nodes():
+    """Test 9: Line endpoints converted to nodes."""
+    import routing_2026
+    import vector_2026
+
+    # Create mock Vector with 2 polylines (4 endpoints, 4 nodes)
+    trails = vector_2026.Vector(geometry='POLYLINE')
+    trails._coordinates = [
+        [(450000.0, 6500000.0), (450100.0, 6500000.0)],
+        [(450200.0, 6500000.0), (450300.0, 6500000.0)],
+    ]
+    trails._epsg = 25832
+
+    # Convert to graph
+    routing_net = routing_2026.polylines_to_graph(trails)
+
+    # Verify 4 nodes created (2 trails × 2 endpoints)
+    assert routing_net.graph.number_of_nodes() == 4, f"Should have 4 nodes, got {routing_net.graph.number_of_nodes()}"
+    assert len(routing_net.node_coords) == 4, f"node_coords should have 4 entries, got {len(routing_net.node_coords)}"
+
+    # Verify 2 edges created
+    assert routing_net.graph.number_of_edges() == 2, f"Should have 2 edges, got {routing_net.graph.number_of_edges()}"
+
+
+@pytest.mark.routing
+def test_endpoint_snapping_within_distance():
+    """Test 10: Nearby endpoints snap to same node."""
+    import routing_2026
+    import vector_2026
+
+    # Create mock Vector with 2 polylines sharing nearby endpoint
+    # Trail 0 endpoints: (0,0) and (100,0)
+    # Trail 1 endpoints: (90,0) and (200,0)
+    # With snap_distance=20, points (100,0) and (90,0) should snap to same node
+    trails = vector_2026.Vector(geometry='POLYLINE')
+    trails._coordinates = [
+        [(0.0, 0.0), (100.0, 0.0)],    # Trail 0
+        [(90.0, 0.0), (200.0, 0.0)],   # Trail 1 (start near Trail 0's end)
+    ]
+    trails._epsg = 25832
+
+    # Convert with snap_distance=20
+    snap_distance = 20.0
+    routing_net = routing_2026.polylines_to_graph(trails, snap_distance=snap_distance)
+
+    # Verify only 3 nodes (one shared node due to snapping)
+    # Expected nodes: (0,0), snapped shared near (100,0)/(90,0), (200,0)
+    assert routing_net.graph.number_of_nodes() == 3, f"Should have 3 nodes after snapping, got {routing_net.graph.number_of_nodes()}"
+
+    # Coordinates should contain values within expected bounds
+    coords_list = list(routing_net.node_coords.values())
+    assert len(coords_list) == 3, f"Should have 3 coordinate entries, got {len(coords_list)}"
+
+
+@pytest.mark.routing
+def test_edges_created_with_euclidean_weight():
+    """Test 11: Edges created with Euclidean distance weights."""
+    import routing_2026
+    import vector_2026
+    import math
+
+    # Create mock Vector with 1 polyline (horizontal line)
+    trails = vector_2026.Vector(geometry='POLYLINE')
+    trails._coordinates = [
+        [(0.0, 0.0), (100.0, 0.0), (200.0, 0.0)]  # Two segments, each 100m
+    ]
+    trails._epsg = 25832
+
+    # Convert to graph
+    routing_net = routing_2026.polylines_to_graph(trails)
+
+    # Verify 1 edge exists (between start and end of polyline)
+    assert routing_net.graph.number_of_edges() == 1, f"Should have 1 edge, got {routing_net.graph.number_of_edges()}"
+
+    # Get edge data
+    edges = list(routing_net.graph.edges(data=True))
+    assert len(edges) == 1, "Should have exactly one edge"
+
+    u, v, edge_data = edges[0]
+
+    # Verify weight attribute exists
+    assert 'weight' in edge_data, "Edge should have 'weight' attribute"
+
+    # Verify weight equals polyline length (200m)
+    expected_length = 200.0
+    assert abs(edge_data['weight'] - expected_length) < 0.01, f"Weight should be {expected_length}m, got {edge_data['weight']}"
+
+    # Verify length attribute also set
+    assert 'length' in edge_data, "Edge should have 'length' attribute"
+    assert abs(edge_data['length'] - expected_length) < 0.01, f"Length should be {expected_length}m, got {edge_data['length']}"
+
+    # Verify trail_id attribute set
+    assert 'trail_id' in edge_data, "Edge should have 'trail_id' attribute"
+    assert edge_data['trail_id'] == 0, "trail_id should be 0 for first polyline"
