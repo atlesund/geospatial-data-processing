@@ -4,5 +4,6 @@ pyshp
 folium
 pytest>=8.0.0
 networkx>=3.6.1
+Pillow>=10.0.0
 scipy>=1.17.1
 osmnx>=2.1.0
