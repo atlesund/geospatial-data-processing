@@ -4,6 +4,15 @@ Root conftest.py for test configuration.
 Registers pytest markers and provides shared fixtures.
 """
 
+import sys
+import os
+
+# Add project root to path for imports
+# We need to add the parent directory (project root) to the path
+# so tests can import modules like routing_2026, geo_2026, etc.
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _project_root)
+
 import pytest
 
 

@@ -132,3 +132,57 @@ def test_find_nearest_node():
     # Verify nearest node is node 2 (50m away)
     assert nearest_node_id == 2, f"Nearest node should be 2, got {nearest_node_id}"
     assert abs(distance - 50.0) < 0.01, f"Distance should be ~50.0m, got {distance}"
+
+
+@pytest.mark.routing
+def test_epsg_property():
+    """Test 6: Set EPSG to 25832, read back, verify value matches."""
+    import routing_2026
+
+    routing_net = routing_2026.RoutingNetwork()
+
+    # Verify EPSG is None initially
+    assert routing_net.epsg is None, "EPSG should be None by default"
+
+    # Set EPSG to 25832 (UTM 32V)
+    routing_net.epsg = 25832
+
+    # Verify EPSG is set correctly
+    assert routing_net.epsg == 25832, f"EPSG should be 25832, got {routing_net.epsg}"
+
+    # Change EPSG to 4326 (WGS84)
+    routing_net.epsg = 4326
+    assert routing_net.epsg == 4326, f"EPSG should be 4326, got {routing_net.epsg}"
+
+    # Set EPSG back to None
+    routing_net.epsg = None
+    assert routing_net.epsg is None, "EPSG should be None after setting to None"
+
+    # Verify invalid EPSG type raises ValueError
+    try:
+        routing_net.epsg = "25832"
+        assert False, "Setting EPSG to string should raise ValueError"
+    except ValueError:
+        pass  # Expected
+
+    try:
+        routing_net.epsg = 25832.0
+        assert False, "Setting EPSG to float should raise ValueError"
+    except ValueError:
+        pass  # Expected
+
+
+@pytest.mark.routing
+def test_find_nearest_node_empty_graph():
+    """Test 7: Query nearest on empty graph, verify returns (None, inf)."""
+    import routing_2026
+
+    routing_net = routing_2026.RoutingNetwork()
+
+    # Query nearest node on empty graph
+    query_x, query_y = 450000.0, 6500000.0
+    nearest_node_id, distance = routing_net.find_nearest_node(query_x, query_y)
+
+    # Verify returns (None, inf) for empty graph
+    assert nearest_node_id is None, f"Nearest node should be None for empty graph, got {nearest_node_id}"
+    assert distance == float('inf'), f"Distance should be inf for empty graph"
