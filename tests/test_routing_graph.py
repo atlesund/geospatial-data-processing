@@ -309,3 +309,48 @@ def test_edges_created_with_euclidean_weight():
     # Verify trail_id attribute set
     assert 'trail_id' in edge_data, "Edge should have 'trail_id' attribute"
     assert edge_data['trail_id'] == 0, "trail_id should be 0 for first polyline"
+
+
+@pytest.mark.routing
+def test_connected_components():
+    """Test 12: Verify resulting graph has connected components."""
+    import routing_2026
+    import vector_2026
+    import networkx as nx
+
+    # Create mock Vector with 3 disconnected polylines
+    # Component 1: Trail A and Trail B are connected
+    # Component 2: Trail C is isolated (far away)
+    trails = vector_2026.Vector(geometry='POLYLINE')
+    trails._coordinates = [
+        # Component 1: Connected trails
+        [(0.0, 0.0), (100.0, 0.0)],    # Trail A
+        [(100.0, 0.0), (200.0, 0.0)],   # Trail B (continues from Trail A's end)
+        # Component 2: Isolated trail (far away)
+        [(10000.0, 10000.0), (10200.0, 10000.0)],  # Trail C
+    ]
+    trails._epsg = 25832
+
+    # Convert to graph with small snap distance (no snapping across distance)
+    snap_distance = 10.0
+    routing_net = routing_2026.polylines_to_graph(trails, snap_distance=snap_distance)
+
+    # Verify node count
+    # Component 1: 3 nodes (Trail A start, shared junction, Trail B end)
+    # Component 2: 2 nodes
+    # Total: 5 nodes
+    assert routing_net.graph.number_of_nodes() == 5, f"Should have 5 nodes, got {routing_net.graph.number_of_nodes()}"
+
+    # Verify edge count
+    assert routing_net.graph.number_of_edges() == 3, f"Should have 3 edges, got {routing_net.graph.number_of_edges()}"
+
+    # Verify graph has exactly 2 connected components
+    # Using NetworkX's connected_components
+    components = list(nx.connected_components(routing_net.graph))
+    assert len(components) == 2, f"Should have 2 connected components, got {len(components)}"
+
+    # Verify component sizes
+    component_sizes = [len(comp) for comp in components]
+    component_sizes.sort(reverse=True)
+    assert component_sizes[0] == 3, f"Largest component should have 3 nodes, got {component_sizes[0]}"
+    assert component_sizes[1] == 2, f"Smallest component should have 2 nodes, got {component_sizes[1]}"
