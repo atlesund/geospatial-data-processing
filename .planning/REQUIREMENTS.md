@@ -23,9 +23,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **COMP-01**: System applies penalties for water body crossings (lakes, rivers, fjords)
 - [ ] **COMP-02**: System applies fixed penalties for steep terrain to ensure realistic hiking routes
-- [ ] **COMP-03**: System combines established hiking trails into routing network
-- [ ] **COMP-04**: System incorporates OpenStreetMap paths and trails where available
-- [ ] **COMP-05**: System uses terrain-based routing where trail network incomplete
+- [x] **COMP-03**: System combines established hiking trails into routing network
+- [x] **COMP-04**: System incorporates OpenStreetMap paths and trails where available
+- [x] **COMP-05**: System uses terrain-based routing where trail network incomplete
 
 ### Route Visualization
 
@@ -106,9 +106,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MAP-05 | Phase 1 | Pending |
 | COMP-01 | Phase 4 | Pending |
 | COMP-02 | Phase 3 | Pending |
-| COMP-03 | Phase 2 | Pending |
-| COMP-04 | Phase 2 | Pending |
-| COMP-05 | Phase 2 | Pending |
+| COMP-03 | Phase 2 | Complete |
+| COMP-04 | Phase 2 | Complete |
+| COMP-05 | Phase 2 | Complete |
 | VIZ-01 | Phase 5 | Pending |
 | EXP-01 | Phase 5 | Pending |
 

@@ -49,8 +49,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 02-01: Integrate osmnx for extracting OSM hiking trail data
-- [ ] 02-02: Build network topology combining established trails and OSM ways
+- [x] 02-01: Integrate osmnx for extracting OSM hiking trail data
+- [x] 02-02: Build network topology combining established trails and OSM ways
 - [ ] 02-03: Add terrain mesh generation for areas lacking trail data
 - [ ] 02-04: Implement network graph construction from multi-source data
 
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Map Interaction & User Selection | 0/3 | Not started | - |
-| 2. Routing Network Construction | 0/4 | Not started | - |
+| 2. Routing Network Construction | 2/5 | In Progress|  |
 | 3. Steep Terrain Penalty Routing | 0/4 | Not started | - |
 | 4. Water Body Penalty Routing | 0/4 | Not started | - |
 | 5. Route Visualization & Export | 0/4 | Not started | - |
