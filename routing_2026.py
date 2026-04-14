@@ -390,8 +390,8 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
     Generate a regular mesh node grid from terrain raster.
 
     For Phase 2: Creates placeholder mesh structure.
-    Phase 3: Will add terrain-based edge weights.
-    Phase 4: Will add water body penalties.
+    Phase 3: Added terrain-based edge weights.
+    Phase 4: Added water body penalties combined multiplicatively with terrain.
 
     Args:
         raster: Raster instance with DTM data
@@ -399,7 +399,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
         bbox: Optional bounding box (x_min, y_min, x_max, y_max)
 
     Returns:
-        RoutingNetwork with regular mesh topology
+        RoutingNetwork with regular mesh topology and water-aware edge weights
     """
     routing_net = RoutingNetwork()
     routing_net.epsg = raster.epsg
@@ -415,7 +415,8 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
     # Calculate pixel spacing for mesh nodes
     pixel_spacing = mesh_spacing / abs(pixel_width)
 
-    # Generate grid of nodes
+    # First pass: create all nodes without edges
+    # This allows us to collect all node coordinates for water feature queries
     node_id_counter = 0
     rows, cols = raster.shape
 
@@ -424,8 +425,8 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
     for col in range(0, cols, int(pixel_spacing)):
         nodes_per_row += 1
 
+    # First loop collect node coordinates and elevation data
     for row in range(0, rows, int(pixel_spacing)):
-        col_index = 0
         for col in range(0, cols, int(pixel_spacing)):
             # Convert pixel to world coordinates using world file
             x = world_file[4] + col * pixel_width + row * world_file[1]
@@ -440,7 +441,35 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
             # Add node to routing network
             routing_net.add_node(node_id_counter, x, y)
 
-            # Connect to left neighbor (same row, previous column) with terrain penalties
+            node_id_counter += 1
+
+    # Extract bounding box for water feature query per D-01/D-02
+    x_coords = [coord[0] for coord in routing_net.node_coords.values()]
+    y_coords = [coord[1] for coord in routing_net.node_coords.values()]
+    bbox_local = (min(x_coords), min(y_coords), max(x_coords), max(y_coords))
+
+    # Convert bbox from local CRS to EPSG:4326 for osmnx query
+    # Use pyproj transformer for CRS conversion
+    try:
+        from pyproj import Transformer
+        transformer = Transformer.from_crs(f"EPSG:{raster.epsg}", "EPSG:4326", always_xy=True)
+        west, south = transformer.transform(bbox_local[0], bbox_local[1])
+        east, north = transformer.transform(bbox_local[2], bbox_local[3])
+        bbox_osm = (west, south, east, north)
+
+        # Query water features per D-01/D-02
+        lakes_gdf, rivers_gdf = load_water_features(bbox_osm, raster.epsg)
+    except Exception as e:
+        # Fallback to no-water-penalty mode if bbox conversion/query fails
+        print(f"Warning: Water feature query failed ({e}), routing without water penalties")
+        lakes_gdf, rivers_gdf = None, None
+
+    # Second pass: create edges with terrain and water penalties
+    node_id_counter = 0
+    for row in range(0, rows, int(pixel_spacing)):
+        col_index = 0
+        for col in range(0, cols, int(pixel_spacing)):
+            # Connect to left neighbor (same row, previous column) with terrain + water penalties
             if col_index > 0:
                 left_id = node_id_counter - 1
                 elev1 = node_elevations[node_id_counter]
@@ -448,22 +477,36 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
 
                 # Calculate terrain-aware weight per D-01/D-02/D-03/D-04/D-05/D-06
                 if elev1 is not None and elev2 is not None:
-                    terrain_weight, slope, penalty = calculate_terrain_weight(
+                    terrain_weight, slope, terrain_penalty = calculate_terrain_weight(
                         elev1, elev2, mesh_spacing
                     )
                 else:
                     # Fallback to uniform weight if elevation unavailable
                     terrain_weight = mesh_spacing
                     slope = 0.0
-                    penalty = 1.0
+                    terrain_penalty = 1.0
 
-                routing_net.add_edge(node_id_counter, left_id, terrain_weight,
+                # Detect water crossing per Phase 4 D-04/D-05
+                edge_start = routing_net.node_coords[node_id_counter]
+                edge_end = routing_net.node_coords[left_id]
+                water_type, water_penalty_factor = detect_water_crossing(
+                    edge_start, edge_end, lakes_gdf, rivers_gdf
+                )
+
+                # Combine penalties multiplicatively per D-06
+                combined_penalty = terrain_penalty * water_penalty_factor
+                final_weight = mesh_spacing * combined_penalty
+
+                routing_net.add_edge(node_id_counter, left_id, final_weight,
                                    length=mesh_spacing,
                                    slope_angle=slope,
-                                   penalty_factor=penalty,
-                                   source='terrain')
+                                   terrain_penalty_factor=terrain_penalty,
+                                   water_type=water_type,
+                                   water_penalty_factor=water_penalty_factor,
+                                   penalty_factor=combined_penalty,
+                                   source='terrain_water')
 
-            # Connect to top neighbor (previous row, same column) with terrain penalties
+            # Connect to top neighbor (previous row, same column) with terrain + water penalties
             if row > 0:
                 top_id = node_id_counter - nodes_per_row
                 elev1 = node_elevations[node_id_counter]
@@ -471,20 +514,34 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
 
                 # Calculate terrain-aware weight per D-01/D-02/D-03/D-04/D-05/D-06
                 if elev1 is not None and elev2 is not None:
-                    terrain_weight, slope, penalty = calculate_terrain_weight(
+                    terrain_weight, slope, terrain_penalty = calculate_terrain_weight(
                         elev1, elev2, mesh_spacing
                     )
                 else:
                     # Fallback to uniform weight if elevation unavailable
                     terrain_weight = mesh_spacing
                     slope = 0.0
-                    penalty = 1.0
+                    terrain_penalty = 1.0
 
-                routing_net.add_edge(node_id_counter, top_id, terrain_weight,
+                # Detect water crossing per Phase 4 D-04/D-05
+                edge_start = routing_net.node_coords[node_id_counter]
+                edge_end = routing_net.node_coords[top_id]
+                water_type, water_penalty_factor = detect_water_crossing(
+                    edge_start, edge_end, lakes_gdf, rivers_gdf
+                )
+
+                # Combine penalties multiplicatively per D-06
+                combined_penalty = terrain_penalty * water_penalty_factor
+                final_weight = mesh_spacing * combined_penalty
+
+                routing_net.add_edge(node_id_counter, top_id, final_weight,
                                    length=mesh_spacing,
                                    slope_angle=slope,
-                                   penalty_factor=penalty,
-                                   source='terrain')
+                                   terrain_penalty_factor=terrain_penalty,
+                                   water_type=water_type,
+                                   water_penalty_factor=water_penalty_factor,
+                                   penalty_factor=combined_penalty,
+                                   source='terrain_water')
 
             node_id_counter += 1
             col_index += 1
