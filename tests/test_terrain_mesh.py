@@ -72,7 +72,8 @@ def test_terrain_mesh_edge_topology():
     for u, v, edge_data in mesh.graph.edges(data=True):
         assert 'weight' in edge_data, "Edges should have weight attribute"
         assert 'source' in edge_data, "Edges should have source attribute"
-        assert edge_data['source'] == 'terrain', "Edge source should be 'terrain'"
+        # Phase 4: source changed to 'terrain_water' for combined terrain/water edges
+        assert edge_data['source'] == 'terrain_water', f"Edge source should be 'terrain_water', got {edge_data['source']}"
 
 
 # Test: Node spacing matches mesh_spacing parameter
