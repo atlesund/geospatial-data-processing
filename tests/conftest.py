@@ -33,6 +33,9 @@ def pytest_configure(config):
     # Phase 4 markers
     config.addinivalue_line("markers", "water: Tests for water body penalty routing")
 
+    # Integration test markers
+    config.addinivalue_line("markers", "integration: Integration tests for end-to-end workflows")
+
 
 @pytest.fixture
 def elevation_grid():
