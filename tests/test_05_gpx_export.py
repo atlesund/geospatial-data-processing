@@ -1,0 +1,365 @@
+"""
+GPX export compatibility tests for Phase 5.
+
+Validates GPX file format, XML schema compliance, WGS84 coordinate
+transformation, and compatibility with GPS navigation devices.
+"""
+
+import pytest
+import xml.etree.ElementTree as ET
+from datetime import datetime
+import os
+import tempfile
+import pyproj
+
+# Skip all tests if tkinter is not available (headless environment)
+pytest.importorskip("tkinter", reason="tkinter not available - requires GUI environment")
+
+from geo_2026 import Screen, RoutingNetwork
+
+
+class TestGPXExportFormat:
+    """Validate GPX 1.1 file structure and XML schema compliance."""
+
+    def test_gpx_xml_validity(self):
+        """Exported GPX file is well-formed valid XML."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]  # Dummy world file
+
+        # Set mock route coordinates in UTM 32V (northern Norway approx)
+        screen._route_network_coords = [
+            (500000, 7000000),
+            (500100, 7000100),
+            (500200, 7000200)
+        ]
+        screen._epsg = 25832  # UTM 32V
+
+        # Trigger export (mock file dialog by monkeypatching filedialog)
+        from tkinter import filedialog
+
+        # Create temp file for export
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.gpx', delete=False) as tmp:
+            import tkinter as tk
+            root = tk.Tk()
+            root.withdraw()
+
+            # Monkeypatch filedialog to return temp file path
+            original_ask = filedialog.asksaveasfilename
+            filedialog.asksaveasfilename = lambda **kwargs: tmp.name
+
+            try:
+                screen.export_gpx()
+
+                # Parse generated GPX file as XML
+                tree = ET.parse(tmp.name)
+                root_elem = tree.getroot()
+
+                # Verify GPX root element with correct namespace
+                assert root_elem.tag == '{http://www.topografix.com/GPX/1/1}gpx'
+                assert root_elem.get('version') == '1.1'
+                assert root_elem.get('creator') == 'Norwegian Hiking Route Planner'
+
+            finally:
+                # Restore original function
+                filedialog.asksaveasfilename = original_ask
+                root.destroy()
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+
+    def test_gpx_track_only_format(self):
+        """GPX contains track-only structure without waypoints per D-07."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]
+
+        screen._route_network_coords = [(500000, 7000000), (500100, 7000100)]
+        screen._epsg = 25832
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.gpx', delete=False) as tmp:
+            root = tk.Tk()
+            root.withdraw()
+
+            filedialog.asksaveasfilename = lambda **kwargs: tmp.name
+
+            try:
+                screen.export_gpx()
+
+                tree = ET.parse(tmp.name)
+                gpx_ns = {'gpx': 'http://www.topografix.com/GPX/1/1'}
+
+                # Verify track structure exists
+                tracks = tree.findall('.//gpx:trk', gpx_ns)
+                assert len(tracks) == 1
+
+                # Verify track segment exists
+                segments = tree.findall('.//gpx:trkseg', gpx_ns)
+                assert len(segments) == 1
+
+                # Verify no waypoint elements (wpt in GPX namespace)
+                waypoints = tree.findall('.//gpx:wpt', gpx_ns)
+                assert len(waypoints) == 0, "GPX should not contain waypoints"
+
+                # Verify track points exist
+                track_points = tree.findall('.//gpx:trkpt', gpx_ns)
+                assert len(track_points) == len(screen._route_network_coords)
+
+            finally:
+                root.destroy()
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+
+
+class TestCoordinateTransformation:
+    """Validate WGS84 coordinate transformation from network EPSG."""
+
+    def test_utm_to_wgs84_transformation(self):
+        """Coordinates transformed from UTM 32V to WGS84 correctly."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]
+
+        # Known reference coordinate in UTM 32V (Oslo area)
+        # UTM 32V: 25832, (600000, 6640000) → WGS84 approx (10.75°E, 59.91°N)
+        screen._route_network_coords = [(600000, 6640000)]
+        screen._epsg = 25832
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.gpx', delete=False) as tmp:
+            root = tk.Tk()
+            root.withdraw()
+
+            filedialog.asksaveasfilename = lambda **kwargs: tmp.name
+
+            try:
+                screen.export_gpx()
+
+                tree = ET.parse(tmp.name)
+                gpx_ns = {'gpx': 'http://www.topografix.com/GPX/1/1'}
+
+                # Extract WGS84 coordinates from GPX
+                trkpt = tree.find('.//gpx:trkpt', gpx_ns)
+                lat = float(trkpt.get('lat'))
+                lon = float(trkpt.get('lon'))
+
+                # Transform expected value using pyproj for validation
+                transformer = pyproj.Transformer.from_crs(25832, 4326, always_xy=True)
+                expected_lon, expected_lat = transformer.transform(600000, 6640000)
+
+                # Verify transformation accuracy within 1 meter (~0.00001 degrees)
+                assert abs(lon - expected_lon) < 0.00001
+                assert abs(lat - expected_lat) < 0.00001
+
+                # Verify coordinates are in plausible Norway range
+                assert 58.0 <= lat <= 71.0  # Norway latitude range
+                assert 4.0 <= lon <= 32.0   # Norway longitude range
+
+            finally:
+                root.destroy()
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+
+    def test_coordinate_six_decimal_places(self):
+        """Coordinates formatted with 6 decimal places for precision."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]
+
+        screen._route_network_coords = [(550000, 6750000)]
+        screen._epsg = 25832
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.gpx', delete=False) as tmp:
+            root = tk.Tk()
+            root.withdraw()
+
+            filedialog.asksaveasfilename = lambda **kwargs: tmp.name
+
+            try:
+                screen.export_gpx()
+
+                # Read raw GPX content and check decimal places
+                with open(tmp.name, 'r', encoding='utf-8') as f:
+                    gpx_content = f.read()
+
+                # Extract latitude and longitude values
+                import re
+                lat_match = re.search(r'lat="([^"]+)"', gpx_content)
+                lon_match = re.search(r'lon="([^"]+)"', gpx_content)
+
+                assert lat_match, "Latitude attribute not found in GPX"
+                assert lon_match, "Longitude attribute not found in GPX"
+
+                lat_str, lon_str = lat_match.group(1), lon_match.group(1)
+
+                # Verify exactly 6 decimal places (or fewer for trailing zeros)
+                lat_decimal = lat_str.split('.')[-1]
+                lon_decimal = lon_str.split('.')[-1]
+
+                # Allow up to 6 decimal places (fewer is OK for trailing zeros)
+                assert len(lat_decimal) <= 6
+                assert len(lon_decimal) <= 6
+
+            finally:
+                root.destroy()
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+
+
+class TestExportBehavior:
+    """Validate export flow, file dialog, and error handling."""
+
+    def test_fallback_to_image_load_no_route(self):
+        """F5 key falls back to image loading when no route computed."""
+        screen = Screen()
+
+        # Ensure no route exists
+        assert screen._route_network_coords == []
+        assert screen._current_route is None
+
+        # Mock _read_image to track if it was called
+        from unittest.mock import patch
+
+        with patch.object(screen, '_read_image') as mock_read_image:
+            # File dialog will be called but route is empty, so it should call _read_image
+            from tkinter import filedialog
+            import tkinter as tk
+            root = tk.Tk()
+            root.withdraw()
+
+            filedialog.asksaveasfilename = lambda **kwargs: '/tmp/test.gpx'
+
+            try:
+                screen.export_gpx()
+
+                # Verify fallback behavior: _read_image was called (no route exists)
+                mock_read_image.assert_called_once()
+            finally:
+                root.destroy()
+
+    def test_export_with_user_cancel(self):
+        """Export handles user cancelling file dialog gracefully."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]
+
+        screen._route_network_coords = [(500000, 7000000)]
+        screen._epsg = 25832
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        root = tk.Tk()
+        root.withdraw()
+
+        # Mock file dialog to return empty string (user cancel)
+        filedialog.asksaveasfilename = lambda **kwargs: ''
+
+        try:
+            # Should not raise exception on cancel
+            screen.export_gpx()
+
+            # Verify no file was created
+            import tempfile
+            tmpdir = tempfile.gettempdir()
+            gpx_files = [f for f in os.listdir(tmpdir) if f.endswith('.gpx')]
+            assert len(gpx_files) == 0 or screen.export_gpx.called == False
+
+        finally:
+            root.destroy()
+
+    def test_export_error_handling(self):
+        """Export handles errors gracefully without crashing."""
+        screen = Screen()
+
+        # Set route but invalid EPSG (transformation should fail)
+        screen._route_network_coords = [(0, 0)]
+        screen._epsg = 99999  # Invalid EPSG code
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        root = tk.Tk()
+        root.withdraw()
+
+        filedialog.asksaveasfilename = lambda **kwargs: '/invalid/path/route.gpx'
+
+        try:
+            # Should not raise exception
+            screen.export_gpx()
+
+        finally:
+            root.destroy()
+
+
+class TestDeviceCompatibility:
+    """Validate GPX compatibility with GPS navigation devices."""
+
+    def test_gpx_namespace_correct(self):
+        """GPX uses standard namespace for device compatibility."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]
+
+        screen._route_network_coords = [(500000, 7000000)]
+        screen._epsg = 25832
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.gpx', delete=False) as tmp:
+            root = tk.Tk()
+            root.withdraw()
+
+            filedialog.asksaveasfilename = lambda **kwargs: tmp.name
+
+            try:
+                screen.export_gpx()
+
+                tree = ET.parse(tmp.name)
+                root_elem = tree.getroot()
+
+                # Standard GPX 1.1 namespace
+                expected_ns = 'http://www.topografix.com/GPX/1/1'
+                actual_ns = root_elem.tag.split('}')[0].strip('{')
+
+                assert actual_ns == expected_ns
+
+            finally:
+                root.destroy()
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+
+    def test_file_encoding_utf8(self):
+        """GPX file exported with UTF-8 encoding for international characters."""
+        screen = Screen()
+        screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 600]
+
+        screen._route_network_coords = [(500000, 7000000)]
+        screen._epsg = 25832
+
+        from tkinter import filedialog
+        import tkinter as tk
+
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.gpx', delete=False) as tmp:
+            root = tk.Tk()
+            root.withdraw()
+
+            filedialog.asksaveasfilename = lambda **kwargs: tmp.name
+            filename = tmp.name
+
+            try:
+                screen.export_gpx()
+
+                # Read file with UTF-8 encoding
+                with open(filename, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                # Verify XML declaration (first line)
+                assert content.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+
+            finally:
+                root.destroy()
+                if os.path.exists(filename):
+                    os.unlink(filename)
