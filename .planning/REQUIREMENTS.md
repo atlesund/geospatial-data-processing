@@ -33,7 +33,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Export
 
-- [ ] **EXP-01**: User can export route as GPX file for GPS navigation device use
+- [x] **EXP-01**: User can export route as GPX file for GPS navigation device use
 
 ## v2 Requirements
 
@@ -110,7 +110,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMP-04 | Phase 2 | Complete |
 | COMP-05 | Phase 2 | Complete |
 | VIZ-01 | Phase 5 | Pending |
-| EXP-01 | Phase 5 | Pending |
+| EXP-01 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total
