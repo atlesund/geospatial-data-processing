@@ -66,7 +66,8 @@ class Screen():
 
         # F5-F8
 
-        self._root.bind('<F5>', self._read_image)
+        # F5: Export route as GPX (fallback to image load if no route)
+        self._root.bind('<F5>', self.export_gpx)
         self._root.bind('<Shift-F5>', self._draw_image)
         self._root.bind('<Control-F5>', self._image_info) # Image info
         self._root.bind('<Control-Shift-F5>', self._fit_canvas_to_image)
@@ -446,6 +447,84 @@ class Screen():
 
         # Display route on canvas
         self.display_route(network_coords)
+
+    def export_gpx(self, event=None):
+        """
+        Export current route as GPX 1.1 file with WGS84 coordinates.
+
+        Triggered by F5 key. Shows file save dialog. Falls back to
+        _read_image if no route computed yet, preserving existing functionality.
+
+        :param self: Instance of the class
+        :param event: tkinter event (optional, for keyboard binding)
+        """
+        # Check if route has been computed
+        if not self._route_network_coords:
+            # No route available, fall back to image load (existing F5 behavior)
+            print('No route computed. Loading image instead.')
+            self._read_image(event)
+            return
+
+        # Check coordinate system availability
+        if self._epsg is None:
+            print('Error: EPSG code not set. Cannot transform to WGS84 for GPX.')
+            return
+
+        # Transform coordinates from network EPSG to WGS84 (EPSG:4326)
+        try:
+            transformer = pyproj.Transformer.from_crs(
+                pyproj.CRS.from_epsg(self._epsg),
+                pyproj.CRS.from_epsg(4326),
+                always_xy=True
+            )
+        except Exception as e:
+            print(f'Error creating coordinate transformer: {e}')
+            return
+
+        # Generate GPX track points with 6 decimal places (~0.1 meter precision)
+        track_points = []
+        for (x, y) in self._route_network_coords:
+            lon, lat = transformer.transform(x, y)
+            track_points.append(f'      <trkpt lat="{lat:.6f}" lon="{lon:.6f}"></trkpt>')
+
+        # Generate GPX 1.1 XML structure (track-only format per D-07)
+        gpx_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Norwegian Hiking Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Route</name>
+    <trkseg>
+{chr(10).join(track_points)}
+    </trkseg>
+  </trk>
+</gpx>
+'''
+
+        # Show file save dialog (D-09)
+        from tkinter import filedialog
+        from datetime import datetime
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        filename = filedialog.asksaveasfilename(
+            title='Export Route as GPX',
+            defaultextension='.gpx',
+            initialfile=f'route_{today}.gpx',
+            filetypes=[
+                ('GPX files', '*.gpx'),
+                ('All files', '*.*')
+            ]
+        )
+
+        if not filename:  # User cancelled dialog
+            print('Export cancelled by user')
+            return
+
+        # Write GPX file with UTF-8 encoding
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(gpx_content)
+            print(f'Route exported successfully to: {filename}')
+        except Exception as e:
+            print(f'Error writing GPX file: {e}')
 
     def _digit_points_to_geojson(self, event):
 
