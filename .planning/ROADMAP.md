@@ -100,8 +100,8 @@ Plans:
 Plans:
 - [x] 05-01: Extend Screen drawing methods to display route polylines with distinct styling
 - [x] 05-02: Implement GPX file export from route polyline data
-- [ ] 05-03: Add route visualization controls (show/hide, color/style options)
-- [ ] 05-04: Validate GPX export compatibility with common GPS devices
+- [x] 05-03: Add route visualization controls (show/hide, color/style options)
+- [x] 05-04: Validate GPX export compatibility with common GPS devices
 
 ## Progress
 
