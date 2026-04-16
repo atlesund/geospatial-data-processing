@@ -27,6 +27,12 @@ class Screen():
         self._end_point = None
         self._route_stage = None
 
+        # Route storage for visualization and export
+        # _current_route: List of [x, y] screen coordinate tuples for display
+        # _route_network_coords: List of (x, y) network EPSG tuples for GPX export
+        self._current_route = None  # Store route as list of screen coordinates
+        self._route_network_coords = []  # Store route as list of network EPSG coordinates for GPX
+
         # Root window    
         self._root = tkinter.Tk()
 
