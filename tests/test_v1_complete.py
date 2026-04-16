@@ -8,6 +8,11 @@ Tests all implemented features:
 - Phase 5: Route Visualization & Export
 
 Note: Phase 4 (Water Body Penalty) is not yet implemented.
+
+Usage:
+    Run all tests: pytest tests/test_v1_complete.py -v
+    Run specific test class: pytest tests/test_v1_complete.py::TestRoutingNetworkBasics -v
+    Run with verbose output: pytest tests/test_v1_complete.py -v -s
 """
 
 import pytest
@@ -68,7 +73,7 @@ class TestRoutingNetworkBasics:
         path = network.shortest_path(1, 3)
         assert path == [1, 2, 3]
 
-    def test_shortest_path chooses_shorter_route(self):
+    def test_shortest_path_chooses_shorter_route(self):
         """Dijkstra chooses shorter route when multiple paths exist."""
         network = RoutingNetwork()
         # Triangle: 1-2-3 (200) vs 1-3 direct (150)
@@ -257,7 +262,7 @@ class TestRouteStateManagement:
         assert mock_screen._current_route is None
 
         assert hasattr(mock_screen, '_route_network_coords')
-        assert assertListEqual(mock_screen._route_network_coords, [])
+        assertListEqual(mock_screen._route_network_coords, [])
 
     def test_set_route_stores_coordinates(self, mock_screen):
         """set_route stores both screen and network coordinates."""
@@ -461,7 +466,7 @@ class TestV1Workflow:
 
         print(f"\n✓ V1 integration test passed:")
         print(f"  Path: {path} ({len(path)} waypoints)")
-        print(f"  Total distance: {sum(len(coordinates[i]) for coordinates in enumerate([coordinates]) if i == 1) / 1000:.1f} km")
+        # Distance calculation removed - test only needs to verify path structure
 
     def test_path_coordinates_preserve_epsg(self):
         """Path coordinates maintain correct EPSG for export."""
