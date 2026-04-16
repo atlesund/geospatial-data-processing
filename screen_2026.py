@@ -1,6 +1,7 @@
 import json
 import tkinter
 import pyproj
+import numpy as np
 
 
 from vector_2026 import Vector
@@ -359,6 +360,92 @@ class Screen():
 
         self._rows = rows
         self._columns = columns
+
+    def world_to_screen(self, world_point):
+        """
+        Transform world coordinates to screen coordinates using world file.
+
+        :param self: Instance of the class
+        :param world_point: [x, y] world coordinates
+        :return: [x, y] screen coordinates, or None if world file not set
+        """
+        if self._world_file is None:
+            return None
+
+        # World to screen using inverse of screen_to_world transformation
+        # Affine transformation: [a, d, b, e, c, f]
+        # screen_to_world: x_world = a*x + b*y + c, y_world = d*x + e*y + f
+        # world_to_screen: Invert the affine matrix
+        a, d, b, e, c, f = self._world_file
+
+        # Create 2x2 transformation matrix and translation vector
+        A = np.array([[a, b], [d, e]])
+        t = np.array([c, f])
+
+        # Invert the transformation matrix
+        try:
+            A_inv = np.linalg.inv(A)
+        except np.linalg.LinAlgError:
+            return None
+
+        x_world, y_world = world_point
+
+        # Apply inverse transformation: screen = A_inv * (world - t)
+        screen = A_inv.dot(np.array([x_world, y_world]) - t)
+
+        return [float(screen[0]), float(screen[1])]
+
+    def display_route(self, route_coords):
+        """
+        Display computed route on the canvas with distinctive orange styling.
+
+        Per locked decisions: bright color (orange), medium width (4px),
+        auto-show after computation, clear old routes first.
+
+        :param self: Instance of the class
+        :param route_coords: List of (x, y) network EPSG coordinate tuples
+        """
+        # Clear old routes before displaying new one (D-06)
+        self.delete('route')
+
+        if not route_coords:
+            return
+
+        # Transform network EPSG coordinates to screen coordinates
+        screen_coords = []
+        for coord in route_coords:
+            screen_point = self.world_to_screen(coord)
+            if screen_point is not None:
+                screen_coords.append(screen_point)
+
+        if not screen_coords:
+            return
+
+        # Store screen coordinates for potential later use
+        self._current_route = screen_coords
+
+        # Display route with orange color, 4px width (D-02, D-03)
+        self.draw_polyline(
+            polyline=screen_coords,
+            width=4,
+            colour='orange',
+            tag='route'
+        )
+
+        print(f'Route displayed: {len(screen_coords)} points')
+
+    def set_route(self, network_coords):
+        """
+        Set and display route coordinates from routing computation.
+
+        :param self: Instance of the class
+        :param network_coords: List of (x, y) network EPSG coordinate tuples
+        """
+        # Store original network coordinates for GPX export
+        self._route_network_coords = network_coords
+
+        # Display route on canvas
+        self.display_route(network_coords)
 
     def _digit_points_to_geojson(self, event):
 
