@@ -96,8 +96,8 @@ class TestTerrainWeightCalculation:
         elevation_diff = 0.0
         edge_length = 100.0
         weight, slope, penalty = calculate_terrain_weight(
-            elevation1=100.0,
-            elevation2=100.0,
+            elev1=100.0,
+            elev2=100.0,
             edge_length=edge_length,
             threshold_degrees=20.0,
             slope_multiplier=0.2
@@ -114,8 +114,8 @@ class TestTerrainWeightCalculation:
         edge_length = 100.0
 
         weight, slope, penalty = calculate_terrain_weight(
-            elevation1=100.0,
-            elevation2=100.0 + elevation_diff,
+            elev1=100.0,
+            elev2=100.0 + elevation_diff,
             edge_length=edge_length,
             threshold_degrees=20.0,
             slope_multiplier=0.2
@@ -132,8 +132,8 @@ class TestTerrainWeightCalculation:
         edge_length = 100.0
 
         weight, slope, penalty = calculate_terrain_weight(
-            elevation1=100.0,
-            elevation2=100.0 + elevation_diff,
+            elev1=100.0,
+            elev2=100.0 + elevation_diff,
             edge_length=edge_length,
             threshold_degrees=20.0,
             slope_multiplier=0.2
@@ -147,11 +147,11 @@ class TestTerrainWeightCalculation:
         """Steeper slopes get higher penalties."""
         # Compare 30° vs 60° slopes
         _, slope_30, penalty_30 = calculate_terrain_weight(
-            elevation1=100.0, elevation2=150.0, edge_length=100.0,
+            elev1=100.0, elev2=150.0, edge_length=100.0,
             threshold_degrees=20.0, slope_multiplier=0.2
         )
         _, slope_60, penalty_60 = calculate_terrain_weight(
-            elevation1=100.0, elevation2=186.6, edge_length=100.0,  # sin(60°) * 216
+            elev1=100.0, elev2=186.6, edge_length=100.0,  # sin(60°) * 216
             threshold_degrees=20.0, slope_multiplier=0.2
         )
 
@@ -175,14 +175,14 @@ class TestTerrainMeshRouting:
         network.add_node(4, 300, 100)  # Steep
         network.add_node(5, 400, 10)   # Flat
 
-        # Flat edges (low weight)
+        # Flat edges (low weight = 220 * 1.0 = 220)
         network.add_edge(1, 3, weight=220, slope_angle=5, penalty_factor=1.0)
         network.add_edge(3, 5, weight=220, slope_angle=5, penalty_factor=1.0)
 
-        # Steep edges (high weight due to penalties)
-        network.add_edge(1, 2, weight=120, slope_angle=30, penalty_factor=2.0)
-        network.add_edge(2, 4, weight=120, slope_angle=30, penalty_factor=2.0)
-        network.add_edge(4, 5, weight=120, slope_angle=30, penalty_factor=2.0)
+        # Steep edges (high weight = 120 * 2.0 = 240 due to penalty_factor)
+        network.add_edge(1, 2, weight=240, slope_angle=30, penalty_factor=2.0)
+        network.add_edge(2, 4, weight=240, slope_angle=30, penalty_factor=2.0)
+        network.add_edge(4, 5, weight=240, slope_angle=30, penalty_factor=2.0)
 
         path = network.shortest_path(1, 5)
         assert path == [1, 3, 5]  # Chooses flat path
@@ -246,13 +246,9 @@ class TestRouteStateManagement:
             screen._rows = 600
             screen._columns = 800
 
-            # Mock world file for coordinate transformation
-            screen._world_file = {
-                'pixel_width': 10.0,
-                'pixel_height': -10.0,
-                'upper_left_x': 600000.0,
-                'upper_left_y': 6650000.0
-            }
+            # Mock world file for coordinate transformation (6-element affine tuple)
+            # Format: [a, d, b, e, c, f] where screen_to_world: x_w = a*x + b*y + c, y_w = d*x + e*y + f
+            screen._world_file = [10.0, 0.0, 0.0, -10.0, 600000.0, 6650000.0]
 
             return screen
 
@@ -442,15 +438,17 @@ class TestV1Workflow:
         for node_id, x, y in nodes:
             network.add_node(node_id, x, y)
 
-        # Add edges with terrain penalties (Phase 3)
-        # Flat route: 1 → 2 → 3 → 5
+        # Add edges with terrain penalties applied to weights (Phase 3)
+        # Flat route: 1 → 2 → 3 → 5 (weights include penalty_factor=1.0)
         network.add_edge(1, 2, weight=1040, slope_angle=7, penalty_factor=1.0)  # Low slope
         network.add_edge(2, 3, weight=420, slope_angle=5, penalty_factor=1.0)   # Low slope
         network.add_edge(3, 5, weight=1040, slope_angle=7, penalty_factor=1.0)  # Low slope
+        # Total flat: 2500
 
-        # Steep route: 1 → 4 → 5
-        network.add_edge(1, 4, weight=260, slope_angle=50, penalty_factor=10.0)  # Steep!
-        network.add_edge(4, 5, weight=870, slope_angle=45, penalty_factor=7.0)   # Steep!
+        # Steep route: 1 → 4 → 5 (weights include penalty_factor: 10.0, 7.0)
+        network.add_edge(1, 4, weight=2600, slope_angle=50, penalty_factor=10.0)  # 260 * 10
+        network.add_edge(4, 5, weight=6090, slope_angle=45, penalty_factor=7.0)   # 870 * 7
+        # Total steep: 8690
 
         # 2. Compute path (Phase 3 - terrain-aware routing)
         path = network.shortest_path(1, 5)

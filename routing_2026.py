@@ -102,12 +102,14 @@ class RoutingNetwork:
             k: Number of nearest nodes to find (default: 1)
 
         Returns:
-            Tuple (node_id, distance) for the nearest node.
-            If graph is empty with no nodes, returns (None, float('inf'))
+            When k=1: Tuple (node_id, distance) for the nearest node.
+            When k>1: List of node_ids in order of proximity.
+            If graph is empty with no nodes, returns (None, float('inf')) for k=1
+            or [] for k>1.
         """
         # Handle empty graph case
         if len(self.node_coords) == 0:
-            return (None, float('inf'))
+            return (None, float('inf')) if k == 1 else []
 
         # Convert node_coords values to numpy array for KDTree
         coords_array = np.array(list(self.node_coords.values()))
@@ -119,16 +121,19 @@ class RoutingNetwork:
         distances, indices = tree.query([x, y], k=k)
 
         # When k=1, scipy returns scalars; when k>1, returns arrays
-        # Handle both cases by converting to list
         if k == 1:
-            indices = [indices] if not isinstance(indices, (list, np.ndarray)) else indices
-            distances = [distances] if not isinstance(distances, (list, np.ndarray)) else distances
+            # Handle scalar case for single nearest neighbor
+            indices = np.array([indices]) if not isinstance(indices, np.ndarray) else indices[np.newaxis]
+            distances = np.array([distances]) if not isinstance(distances, np.ndarray) else distances[np.newaxis]
 
-        # Get node_id for nearest neighbor (index 0)
-        node_id = list(self.node_coords.keys())[indices[0]]
-        distance = distances[0]
+        # Get node_ids for all k nearest neighbors
+        node_ids = list(self.node_coords.keys())
+        result = [node_ids[i] for i in indices]
 
-        return (node_id, distance)
+        if k == 1:
+            return (result[0], float(distances[0]))
+        else:
+            return result
 
     def _get_epsg(self):
         """
