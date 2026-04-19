@@ -46,13 +46,13 @@ Plans:
   1. System integrates established hiking trails into routing graph
   2. System incorporates OpenStreetMap paths and trails where available
   3. System uses terrain-based routing in areas where trail network is incomplete
-**Plans**: TBD
+**Plans**: 4
 
 Plans:
-- [ ] 02-01: Integrate osmnx for extracting OSM hiking trail data
-- [ ] 02-02: Build network topology combining established trails and OSM ways
-- [ ] 02-03: Add terrain mesh generation for areas lacking trail data
-- [ ] 02-04: Implement network graph construction from multi-source data
+- [x] 02-01: Install dependencies and create test fixtures
+- [x] 02-02: Build network topology combining established trails and OSM ways
+- [x] 02-03: OSM data integration for hiking trail extraction
+- [x] 02-04: Add terrain mesh generation for areas lacking trail data
 
 ### Phase 3: Steep Terrain Penalty Routing
 **Goal**: System applies fixed steep terrain penalties to ensure realistic hiking routes
@@ -62,13 +62,13 @@ Plans:
   1. System applies fixed penalties for steep terrain in route computation
   2. System routes avoid unrealistic vertical climbs when alternatives exist
   3. System produces routes that follow natural hiking gradients where possible
-**Plans**: TBD
+**Plans**: 4
 
 Plans:
-- [ ] 03-01: Integrate terrain data raster processing for slope calculation
-- [ ] 03-02: Implement steep terrain detection using slope thresholds
-- [ ] 03-03: Add fixed penalty function for steep terrain segments
-- [ ] 03-04: Integrate path finding algorithm (A*) with steep terrain weights
+- [x] 03-01: Enable raster elevation data access with Pillow (PIL) library
+- [x] 03-02: Implement terrain weight calculation with slope-based penalties
+- [x] 03-03: Integrate terrain weights into terrain mesh generation
+- [x] 03-04: Validate terrain-aware routing through integration testing
 
 ### Phase 4: Water Body Penalty Routing
 **Goal**: System computes optimal routes by applying penalties for water body crossings
@@ -78,13 +78,13 @@ Plans:
   1. System applies penalties for water body crossings (lakes, rivers, fjords) in route computation
   2. System computes routes that minimize water crossings while finding optimal paths
   3. System produces routes that cross water only when necessary with appropriate detours
-**Plans**: TBD
+**Plans**: 4
 
 Plans:
-- [ ] 04-01: Integrate hydrography data for water body detection
-- [ ] 04-02: Implement water body penalty weighting system
-- [ ] 04-03: Add hybrid cost function combining steep terrain and water penalties
-- [ ] 04-04: Integrate path finding algorithm (A*) with water penalty weights
+- [ ] 04-01: Integrate osmnx API to query OpenStreetMap water features (lakes, rivers, fjords)
+- [ ] 04-02: Implement water crossing detection via point-in-polygon and line-intersection checks
+- [ ] 04-03: Add combined terrain × water multiplicative penalty calculation in mesh generation
+- [ ] 04-04: Validate water-aware routing through integration testing
 
 ### Phase 5: Route Visualization & Export
 **Goal**: Users can view computed routes and export them for GPS navigation device use
@@ -94,24 +94,47 @@ Plans:
   1. System displays computed route polyline on interactive map with distinct, clear visualization
   2. User can export route as GPX file that loads successfully in GPS navigation device
   3. GPX file contains all required waypoint and track information for navigation
-**Plans**: TBD
+**Plans**: 4
 **UI hint**: yes
 
 Plans:
-- [ ] 05-01: Extend Screen drawing methods to display route polylines with distinct styling
-- [ ] 05-02: Implement GPX file export from route polyline data
-- [ ] 05-03: Add route visualization controls (show/hide, color/style options)
-- [ ] 05-04: Validate GPX export compatibility with common GPS devices
+- [x] 05-01: Extend Screen drawing methods to display route polylines with distinct styling
+- [x] 05-02: Implement GPX file export from route polyline data
+- [x] 05-03: Add route visualization controls (show/hide, color/style options)
+- [x] 05-04: Validate GPX export compatibility with common GPS devices
+
+### Phase 6: GUI Routing Integration - Connect point selection with routing computation
+
+**Goal:** Routes automatically compute when user selects start and end points through GUI
+**Requirements**: D-01, D-02, D-03, D-04 (from CONTEXT.md)
+**Depends on:** Phase 5
+**Success Criteria** (what must be TRUE):
+  1. User selects start point via Shift-F9 + click
+  2. User selects end point via click (second click)
+  3. Route automatically computes after second click (no manual trigger needed)
+  4. System transforms screen coordinates through world → network EPSG
+  5. System snaps clicked points to nearest graph nodes
+  6. System computes shortest path and displays route on map
+  7. All errors show user-friendly message dialogs
+
+**Plans**: 4
+
+Plans:
+- [ ] 06-00: Create test infrastructure with fixtures and comprehensive test coverage
+- [ ] 06-01: Add network assignment capability to Screen class (set_route_network method)
+- [ ] 06-02: Implement core routing computation method (_compute_and_display_route)
+- [ ] 06-03: Wire auto-trigger into point selection and create integration example
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Map Interaction & User Selection | 0/3 | Not started | - |
-| 2. Routing Network Construction | 0/4 | Not started | - |
-| 3. Steep Terrain Penalty Routing | 0/4 | Not started | - |
+| 1. Map Interaction & User Selection | 3/3 | Complete | 2026-04-12 |
+| 2. Routing Network Construction | 4/4 | Complete | 2026-04-13 |
+| 3. Steep Terrain Penalty Routing | 4/4 | Complete | 2026-04-13 |
 | 4. Water Body Penalty Routing | 0/4 | Not started | - |
-| 5. Route Visualization & Export | 0/4 | Not started | - |
+| 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
+| 6. GUI Routing Integration | 0/4 | Planning complete | 2026-04-19 |
