@@ -94,7 +94,7 @@ Plans:
   1. System displays computed route polyline on interactive map with distinct, clear visualization
   2. User can export route as GPX file that loads successfully in GPS navigation device
   3. GPX file contains all required waypoint and track information for navigation
-**Plans**: TBD
+**Plans**: 4
 **UI hint**: yes
 
 Plans:
@@ -103,10 +103,32 @@ Plans:
 - [x] 05-03: Add route visualization controls (show/hide, color/style options)
 - [x] 05-04: Validate GPX export compatibility with common GPS devices
 
+### Phase 6: GUI Routing Integration - Connect point selection with routing computation
+
+**Goal:** Routes automatically compute when user selects start and end points through GUI
+**Requirements**: D-01, D-02, D-03, D-04 (from CONTEXT.md)
+**Depends on:** Phase 5
+**Success Criteria** (what must be TRUE):
+  1. User selects start point via Shift-F9 + click
+  2. User selects end point via click (second click)
+  3. Route automatically computes after second click (no manual trigger needed)
+  4. System transforms screen coordinates through world → network EPSG
+  5. System snaps clicked points to nearest graph nodes
+  6. System computes shortest path and displays route on map
+  7. All errors show user-friendly message dialogs
+
+**Plans**: 4
+
+Plans:
+- [ ] 06-00: Create test infrastructure with fixtures and comprehensive test coverage
+- [ ] 06-01: Add network assignment capability to Screen class (set_route_network method)
+- [ ] 06-02: Implement core routing computation method (_compute_and_display_route)
+- [ ] 06-03: Wire auto-trigger into point selection and create integration example
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -114,4 +136,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Routing Network Construction | 4/4 | Complete | 2026-04-13 |
 | 3. Steep Terrain Penalty Routing | 4/4 | Complete | 2026-04-13 |
 | 4. Water Body Penalty Routing | 0/4 | Not started | - |
-| 5. Route Visualization & Export | 0/4 | Not started | - |
+| 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
+| 6. GUI Routing Integration | 0/4 | Planning complete | 2026-04-19 |
