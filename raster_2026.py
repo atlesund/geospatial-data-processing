@@ -33,13 +33,17 @@ class Raster():
     epsg = property(fget=_get_epsg, fset=_set_epsg) # Reference system
 
     def _get_shape(self):
-        if self._photoimage is None:
-            return None
-        
-        rows = self._photoimage.height()
-        columns = self._photoimage.width()
+        # Try PhotoImage first (for PNG files)
+        if self._photoimage is not None:
+            rows = self._photoimage.height()
+            columns = self._photoimage.width()
+            return [rows, columns]
 
-        return [rows, columns]
+        # Fall back to elevation grid dimensions (for GeoTIFF)
+        if self._elevation_grid is not None:
+            return list(self._elevation_grid.shape)
+
+        return None
 
     shape = property(fget=_get_shape)
 
@@ -80,24 +84,181 @@ class Raster():
     # User method
 
     def read_image(self):
-        filename = utilities.input_file(['png'])
+        """
+        Load a georeferenced image file (PNG with world file or GeoTIFF).
+
+        Supports:
+        - PNG files with separate world file (.wld, .tfw, etc.)
+        - GeoTIFF files (.tif, .tiff) with embedded georeferencing
+
+        For GeoTIFF: Uses rasterio to extract affine transform and CRS metadata.
+        For PNG: Uses tkinter.PhotoImage and reads world file via utilities.
+        """
+        filename = utilities.input_file(['png', 'tif', 'tiff'])
 
         if filename is None:
             return
 
-        # Update Raster() instance
-
-        self._photoimage = tkinter.PhotoImage(file=filename)
         self._filename = filename
 
-        # World file
-        world_file = utilities.read_world_file(filename)
-        self._world_file = world_file
+        # Try GeoTIFF format first (has embedded metadata)
+        if filename.lower().endswith(('.tif', '.tiff')):
+            self._read_geotiff(filename)
+        else:
+            # Fall back to PNG with separate world file
+            self._read_png_with_worldfile(filename)
 
-        # Load elevation grid using Pillow for terrain analysis
+    def _read_geotiff(self, filename):
+        """
+        Read GeoTIFF file with embedded georeferencing metadata.
+
+        Extracts:
+        - Affine transform (pixel ↔ world coordinates)
+        - EPSG code (coordinate reference system)
+        - Elevation data as numpy array
+
+        Args:
+            filename: Path to GeoTIFF file
+        """
+        try:
+            from rasterio.transform import Affine
+
+            with rasterio.open(filename) as src:
+                # Extract affine transform coefficients
+                # Affine format: | a b c |   |  pixel_width  row_translation  x_upper_left |
+                #               | d e f | = |  col_translation  pixel_height  y_upper_left |
+                #               | 0 0 1 |   |  0                0              1            |
+                affine = [
+                    src.transform[0],  # a: pixel width
+                    src.transform[1],  # b: row rotation (typically 0 for north-up)
+                    src.transform[2],  # c: x_upper_left
+                    src.transform[3],  # d: column rotation (typically 0 for north-up)
+                    src.transform[4],  # e: pixel height (typically negative for north-up)
+                    src.transform[5]   # f: y_upper_left
+                ]
+                self._world_file = affine
+
+                # Extract EPSG code from CRS
+                if src.crs:
+                    crs_str = str(src.crs)
+                    if 'EPSG:' in crs_str:
+                        self._epsg = int(crs_str.split(':')[1])
+                    else:
+                        # Handle non-EPSG CRS (e.g., WGS84)
+                        # For now, assume proj4 string needs manual conversion
+                        self._epsg = None
+                else:
+                    self._epsg = None
+
+                # Load elevation data (first band)
+                # Convert to float32 for mathematical operations
+                elevation_data = src.read(1)
+                self._elevation_grid = elevation_data.astype(np.float32)
+
+                # Handle nodata values - replace with NaN for consistency
+                if src.nodata is not None:
+                    self._elevation_grid[elevation_data == src.nodata] = np.nan
+
+            # Create PhotoImage for tkinter display
+            self._photoimage = self._convert_elevation_to_photoimage(self._elevation_grid)
+
+            print(f'Loaded GeoTIFF: {filename}')
+            print(f'  EPSG: {self._epsg}')
+            print(f'  Bounds: {self._world_file[4]}, {self._world_file[5]} to '
+                  f'{self._world_file[4] + self._world_file[0]*self.shape[1]}, '
+                  f'{self._world_file[5] + self._world_file[3]*self.shape[0]}')
+            print(f'  Resolution: {abs(self._world_file[0])}m x {abs(self._world_file[3])}m per pixel')
+
+        except ImportError:
+            utilities.warning('rasterio not installed. Install with: pip install rasterio')
+            return
+        except Exception as e:
+            self._elevation_grid = None
+            self._world_file = None
+            utilities.warning(f'Failed to load GeoTIFF: {e}')
+
+    def _read_png_with_worldfile(self, filename):
+        """
+        Read PNG file with separate world file.
+
+        Args:
+            filename: Path to PNG file
+        """
+        # Load image using tkinter
+        self._photoimage = tkinter.PhotoImage(file=filename)
+
+        # Read world file
+        world_file = utilities.read_world_file(filename)
+        if world_file is None:
+            utilities.warning('No world file found. Coordinate transformation unavailable.')
+        else:
+            self._world_file = world_file
+
+        # Load elevation grid using Pillow
         from PIL import Image
         try:
             self._elevation_grid = np.array(Image.open(filename))
         except Exception as e:
             self._elevation_grid = None
             utilities.warning(f'Failed to load elevation grid: {e}')
+
+    def _convert_elevation_to_photoimage(self, elevation_grid):
+        """
+        Convert elevation array to tkinter PhotoImage for display.
+
+        Applies a grayscale color mapping: low elevation = dark, high = bright.
+
+        Args:
+            elevation_grid: 2D numpy array of elevation values
+
+        Returns:
+            tkinter.PhotoImage instance
+        """
+        # Handle NaN values for display
+        valid_mask = ~np.isnan(elevation_grid)
+        valid_elevations = elevation_grid[valid_mask]
+
+        if len(valid_elevations) == 0:
+            # All NaN - create black image
+            valid_elevations = np.array([0, 1])
+
+        # Normalize elevation to 0-255 range for display
+        elev_min = np.min(valid_elevations)
+        elev_max = np.max(valid_elevations)
+        elev_range = elev_max - elev_min
+
+        if elev_range == 0:
+            # Flat terrain - all mid-gray
+            normalized = np.full_like(elevation_grid, 128)
+        else:
+            normalized = 255 * (elevation_grid - elev_min) / elev_range
+            normalized[~valid_mask] = 0  # NaN = black
+
+        normalized = np.clip(normalized, 0, 255).astype(np.uint8)
+
+        # Create RGB array (grayscale)
+        rgb_array = np.stack([normalized, normalized, normalized], axis=-1)
+
+        # Convert to PhotoImage
+        # Note: tkinter.PhotoImage doesn't accept numpy arrays directly
+        # Save to temporary file and load
+        from PIL import Image as PILImage
+        import tempfile
+        import os
+
+        img = PILImage.fromarray(rgb_array, mode='RGB')
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            img.save(tmp_path)
+            photo = tkinter.PhotoImage(file=tmp_path)
+            os.unlink(tmp_path)  # Clean up temp file
+            return photo
+        except Exception as e:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            utilities.warning(f'Failed to create PhotoImage: {e}')
+            return None
