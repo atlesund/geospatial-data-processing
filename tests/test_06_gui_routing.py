@@ -207,7 +207,7 @@ class TestPathComputation:
         screen._end_point = [400, -25]  # Offset to account for world file scaling
 
         # Mock utilities.warning to avoid dialogs in tests
-        with patch('utilities_2026.utilities.warning'):
+        with patch('utilities_2026.warning'):
             # Mock cursor changes to avoid GUI updates
             with patch.object(screen._root, 'config'):
                 try:
@@ -273,7 +273,7 @@ class TestErrorHandling:
         screen._start_point = [100, 100]
         screen._end_point = [200, 200]
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        with patch('utilities_2026.warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -290,7 +290,7 @@ class TestErrorHandling:
         screen._start_point = [100, 100]
         screen._end_point = [200, 200]
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        with patch('utilities_2026.warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -309,7 +309,7 @@ class TestErrorHandling:
         network.graph.clear()
         network.node_coords.clear()
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        with patch('utilities_2026.warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -319,24 +319,34 @@ class TestErrorHandling:
 
     def test_no_path_found_warning(self, screen_with_network):
         """No path between points triggers warning dialog."""
+        import networkx as nx
         screen, network = screen_with_network
         screen._world_file = [1.0, 0.0, 0.0, -1.0, 0.0, 0.0]
         screen._start_point = [100, 100]
-        screen._end_point = [200, 200]
+        screen._end_point = [9000, 900]  # Far point to snap to different component
 
         # Create disconnected components
         network.graph.clear()
-        network.add_node('n1', 100.0, 200.0)
-        network.add_node('n2', 900000.0, 7000000.0)  # Far away
+        network.node_coords.clear()
+        # Trigger rebuild of KDTree by accessing it
+        network._kdtree = None
+        # Create two separate components
+        network.add_node('a1', 100.0, 200.0)
+        network.add_node('a2', 150.0, 250.0)
+        network.add_edge('a1', 'a2', weight=50.0)
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        network.add_node('b1', 9000.0, 9000.0)
+        network.add_node('b2', 9050.0, 9050.0)
+        network.add_edge('b1', 'b2', weight=50.0)
+
+        with patch('utilities_2026.warning') as mock_warning:
             screen._compute_and_display_route()
 
-            # Verify warning was called
+            # Verify warning was called (NetworkXNoPath exception)
             assert mock_warning.called
             call_args = str(mock_warning.call_args)
-            # May reach nearest node lookup or path computation
-            # Just verify some error path was triggered
+            # Should catch NetworkXNoPath exception
+            assert 'path' in call_args.lower()
 
     def test_coordinate_system_undefined_warning(self, screen_with_network):
         """Undefined EPSG codes trigger warning dialog."""
@@ -347,7 +357,7 @@ class TestErrorHandling:
         screen._start_point = [100, 100]
         screen._end_point = [200, 200]
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        with patch('utilities_2026.warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -376,7 +386,7 @@ class TestProgressIndication:
         screen._root.config = mock_config
         screen._root.update_idletasks = lambda: None
 
-        with patch('utilities_2026.utilities.warning'):
+        with patch('utilities_2026.warning'):
             screen._compute_and_display_route()
 
         # Verify cursor changed during computation
