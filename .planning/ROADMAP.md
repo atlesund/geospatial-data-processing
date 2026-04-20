@@ -120,10 +120,10 @@ Plans:
 **Plans**: 4
 
 Plans:
-- [ ] 06-00: Create test infrastructure with fixtures and comprehensive test coverage
-- [ ] 06-01: Add network assignment capability to Screen class (set_route_network method)
-- [ ] 06-02: Implement core routing computation method (_compute_and_display_route)
-- [ ] 06-03: Wire auto-trigger into point selection and create integration example
+- [x] 06-00: Create test infrastructure with fixtures and comprehensive test coverage
+- [x] 06-01: Add network assignment capability to Screen class (set_route_network method)
+- [x] 06-02: Implement core routing computation method (_compute_and_display_route)
+- [x] 06-03: Wire auto-trigger into point selection and create integration example
 
 ## Progress
 
@@ -137,4 +137,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Steep Terrain Penalty Routing | 4/4 | Complete | 2026-04-13 |
 | 4. Water Body Penalty Routing | 0/4 | Not started | - |
 | 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
-| 6. GUI Routing Integration | 0/4 | Planning complete | 2026-04-19 |
+| 6. GUI Routing Integration | 4/4 | Complete    | 2026-04-20 |
