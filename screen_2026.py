@@ -171,6 +171,9 @@ class Screen():
             self._route_stage = 'start'
             print(f'End point selected: [{x}, {y}]')
 
+            # === NEW IN PHASE 6: Auto-trigger routing ===
+            self._compute_and_display_route()
+
     def _start_route_selection(self, event):
         """
         Start route selection mode for picking start and end points.
