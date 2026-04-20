@@ -206,7 +206,8 @@ class TestPathComputation:
         screen._end_point = [400, -25]  # Offset to account for world file scaling
 
         # Mock utilities.warning to avoid dialogs in tests
-        with patch('utilities_2026.utilities.warning'):
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning'):
             # Mock cursor changes to avoid GUI updates
             with patch.object(screen._root, 'config'):
                 try:
@@ -272,7 +273,8 @@ class TestErrorHandling:
         screen._start_point = [100, 100]
         screen._end_point = [200, 200]
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -289,7 +291,8 @@ class TestErrorHandling:
         screen._start_point = [100, 100]
         screen._end_point = [200, 200]
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -308,7 +311,8 @@ class TestErrorHandling:
         network.graph.clear()
         network.node_coords.clear()
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -328,7 +332,8 @@ class TestErrorHandling:
         network.add_node('n1', 100.0, 200.0)
         network.add_node('n2', 900000.0, 7000000.0)  # Far away
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -346,7 +351,8 @@ class TestErrorHandling:
         screen._start_point = [100, 100]
         screen._end_point = [200, 200]
 
-        with patch('utilities_2026.utilities.warning') as mock_warning:
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning') as mock_warning:
             screen._compute_and_display_route()
 
             # Verify warning was called
@@ -375,7 +381,8 @@ class TestProgressIndication:
         screen._root.config = mock_config
         screen._root.update_idletasks = lambda: None
 
-        with patch('utilities_2026.utilities.warning'):
+        import utilities_2026
+        with patch.object(utilities_2026, 'warning'):
             screen._compute_and_display_route()
 
         # Verify cursor changed during computation
