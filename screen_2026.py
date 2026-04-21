@@ -7,7 +7,7 @@ import networkx as nx
 
 from vector_2026 import Vector
 from raster_2026 import Raster
-from routing_2026 import RoutingNetwork
+from routing_2026 import RoutingNetwork, terrain_mesh_from_raster
 
 
 import utilities_2026 as utilities
@@ -167,8 +167,8 @@ class Screen():
             self._end_point = [x, y]
             # Display coordinates
             self._update_coordinate_display([x, y], 'End')
-            # Toggle back to start stage for reset
-            self._route_stage = 'start'
+            # End route selection mode after route computation
+            self._route_stage = None
             print(f'End point selected: [{x}, {y}]')
 
             # === NEW IN PHASE 6: Auto-trigger routing ===
@@ -326,21 +326,79 @@ class Screen():
         self.draw_text(point, message, colour='white', tag='coord_display')
 
     def _read_image(self, event):
-
         """
-        Read image with F5
-        
-        :param self: Description
-        :param event: Description
-        """
+        Read image with F5 and auto-generate routing network (Phase 7).
 
+        User loads GeoTIFF terrain file, system automatically generates
+        routing mesh for immediate route computation via GUI.
+
+        Per D-01: Auto-trigger after terrain load.
+        Per D-02: Fixed 200m mesh spacing for v1.
+        Per D-03: Cursor progress indication during generation.
+        Per D-04: Warning dialogs for all error types.
+        Per D-05: Validate network non-emptily before assignment.
+        Per D-06: Network replacement on re-load (hot reload).
+
+        :param self: Instance of the class
+        :param event: Keyboard event (F5 key press)
+        """
+        # Load terrain data
         self._image.read_image()
         self._world_file = self._image._world_file
-        print(f'WORLD FILE SET IN READ_IMAGE (F5): {self._world_file}') #REMOVE
+        print(f"WORLD FILE SET (F5): {self._world_file}")  # Debug output
 
-        epsg = utilities.epsg()
-        if epsg is not None:
-            self._epsg = epsg
+        # Use embedded EPSG from GeoTIFF if available, otherwise prompt user
+        if self._image.epsg is not None:
+            self._epsg = self._image.epsg
+            print(f"EPSG set from terrain file: {self._epsg}")
+        else:
+            epsg = utilities.epsg()
+            if epsg is not None:
+                self._epsg = epsg
+                print(f"EPSG set from user input: {self._epsg}")
+
+        # === Phase 7: Auto-generate routing network from terrain ===
+        try:
+            # Progress indication: cursor changes to watch
+            self._root.config(cursor='watch')
+            self._root.update_idletasks()
+            print("Generating routing network from terrain...")
+
+            # Generate mesh with fixed 200m spacing (v1)
+            # Disable water queries for v1 to avoid blocking OSM API calls in GUI
+            routing_net = terrain_mesh_from_raster(
+                self._image,
+                mesh_spacing=200,  # Fixed per D-02: performance vs detail tradeoff
+                enable_water_queries=False  # FIXME: Phase 4 water penalties should use non-blocking approach
+            )
+
+            # Validate network before assignment (D-05)
+            if len(routing_net.graph.nodes) == 0:
+                utilities.warning(
+                    "Mesh generation produced empty network. "
+                    "Terrain data may be invalid."
+                )
+                print("Warning: Empty network, not assigned to screen.")
+            else:
+                # Assign network to screen (Phase 6 integration)
+                self.set_route_network(routing_net)
+                print(f"Mesh network created and assigned: "
+                      f"{len(routing_net.graph.nodes)} nodes, "
+                      f"{len(routing_net.graph.edges)} edges")
+
+            # Display the terrain image on canvas
+            if self._image and hasattr(self._image, '_photoimage') and self._image._photoimage:
+                self._canvas.delete('all')
+                self._canvas.create_image(0, 0, image=self._image._photoimage, anchor='nw')
+                print("Terrain image displayed on canvas")
+
+        except Exception as e:
+            # Error handling with warning dialog (D-04)
+            utilities.warning(f"Failed to generate routing network: {e}")
+            print(f"Mesh generation error: {e}")
+        finally:
+            # Restore cursor even if fails (D-03)
+            self._root.config(cursor='arrow')
 
     def _draw_image(self, event):
 
@@ -605,7 +663,7 @@ class Screen():
                 return
 
             # === 10. Display route ===
-            self.set_route(route_screen_coords)
+            self.set_route(route_network_coords)
 
             # Print routing stats for debugging
             print(f'Route computed: {len(route_screen_coords)} vertices, '

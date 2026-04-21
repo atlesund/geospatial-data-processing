@@ -121,21 +121,29 @@ class Raster():
             filename: Path to GeoTIFF file
         """
         try:
-            from rasterio.transform import Affine
+            import rasterio
 
             with rasterio.open(filename) as src:
                 # Extract affine transform coefficients
-                # Affine format: | a b c |   |  pixel_width  row_translation  x_upper_left |
-                #               | d e f | = |  col_translation  pixel_height  y_upper_left |
-                #               | 0 0 1 |   |  0                0              1            |
+                # rasterio Affine object is (a, b, c, d, e, f)
+                # World file format is [a, d, b, e, c, f]:
+                #   a = pixel width
+                #   d = row rotation (typically 0)
+                #   b = column rotation (typically 0)
+                #   e = pixel height (typically negative for north-up rasters)
+                #   c = x_upper_left
+                #   f = y_upper_left
+                # Debug: print original transform
+                print(f"DEBUG: rasterio transform = {list(src.transform)}")
                 affine = [
                     src.transform[0],  # a: pixel width
-                    src.transform[1],  # b: row rotation (typically 0 for north-up)
+                    src.transform[3],  # d: row rotation (column rotation is transform[3])
+                    src.transform[1],  # b: column rotation (row rotation is transform[1])
+                    src.transform[4],  # e: pixel height
                     src.transform[2],  # c: x_upper_left
-                    src.transform[3],  # d: column rotation (typically 0 for north-up)
-                    src.transform[4],  # e: pixel height (typically negative for north-up)
                     src.transform[5]   # f: y_upper_left
                 ]
+                print(f"DEBUG: world_file (affine) = {affine}")
                 self._world_file = affine
 
                 # Extract EPSG code from CRS

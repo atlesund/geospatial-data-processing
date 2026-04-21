@@ -414,8 +414,16 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
 
     # Get raster extent and pixel size from world file
     world_file = raster._world_file
+    if world_file is None or len(world_file) < 6:
+        raise ValueError("Raster has no valid world file")
     pixel_width = world_file[0]
     pixel_height = world_file[3]  # Negative
+
+    # Validate pixel dimensions to prevent division by zero
+    if pixel_width == 0:
+        raise ValueError("World file pixel_width is zero (division by zero)")
+    if pixel_height == 0:
+        raise ValueError("World file pixel_height is zero (division by zero)")
 
     # Calculate pixel spacing for mesh nodes
     pixel_spacing = mesh_spacing / abs(pixel_width)
