@@ -737,7 +737,7 @@ def intersect(p_1, p_2, p_3, p_4):
 
     if u_a >= 0.0 and u_a <= 1.0 and u_b >= 0.0 and u_b <= 1.0:
         type_intersection = True # The segments intersect
-    elif (u_a >= 0.0 and u_a) <= 1.0 and (u_b < 0.0 or u_b > 1.0):
+    elif (u_a >= 0.0 and u_a <= 1.0) and (u_b < 0.0 or u_b > 1.0):
         type_intersection = None # The lines intersect but not the segments
     else:
         type_intersection = False # The lines do not intersect
@@ -855,3 +855,60 @@ def get_segments(polyline):
         segments.append([p_1,p_2])
 
     return segments
+
+def point_on_segment(point, start, end, epsilon=1e-9):
+
+    x, y = point
+    x1, y1 = start
+    x2, y2 = end
+
+    cross_product = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
+
+    if abs(cross_product) > epsilon:
+        return False
+
+    within_x = min(x1, x2) - epsilon <= x <= max(x1, x2) + epsilon
+    within_y = min(y1, y2) - epsilon <= y <= max(y1, y2) + epsilon
+
+    return within_x and within_y
+
+
+def point_in_polygon(point, polygon):
+    """
+    Return True if a point is inside a polygon, False otherwise.
+
+    The polygon can contain multiple parts, so holes are handled with the
+    odd-even rule by counting ray/segment intersections across all parts.
+    """
+
+    x, y = point
+    intersections = 0
+
+    for part in polygon:
+
+        if len(part) < 2:
+            continue
+
+        if part[0] == part[-1]:
+            ring = part
+        else:
+            ring = part + [part[0]]
+
+        for start, end in zip(ring, ring[1:]):
+
+            if point_on_segment(point, start, end):
+                return True
+
+            x1, y1 = start
+            x2, y2 = end
+
+            if y1 == y2:
+                continue
+
+            if (y1 > y) != (y2 > y):
+                x_intersection = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+
+                if x_intersection > x:
+                    intersections += 1
+
+    return intersections % 2 == 1
