@@ -2,10 +2,12 @@ import json
 import tkinter
 import pyproj
 import numpy as np
+import networkx as nx
 
 
 from vector_2026 import Vector
 from raster_2026 import Raster
+from routing_2026 import RoutingNetwork, terrain_mesh_from_raster
 
 
 import utilities_2026 as utilities
@@ -27,6 +29,7 @@ class Screen():
         self._start_point = None
         self._end_point = None
         self._route_stage = None
+        self._route_network = None      # RoutingNetwork instance for path computation
 
         # Route storage for visualization and export
         # _current_route: List of [x, y] screen coordinate tuples for display
@@ -164,9 +167,12 @@ class Screen():
             self._end_point = [x, y]
             # Display coordinates
             self._update_coordinate_display([x, y], 'End')
-            # Toggle back to start stage for reset
-            self._route_stage = 'start'
+            # End route selection mode after route computation
+            self._route_stage = None
             print(f'End point selected: [{x}, {y}]')
+
+            # === NEW IN PHASE 6: Auto-trigger routing ===
+            self._compute_and_display_route()
 
     def _start_route_selection(self, event):
         """
@@ -320,21 +326,79 @@ class Screen():
         self.draw_text(point, message, colour='white', tag='coord_display')
 
     def _read_image(self, event):
-
         """
-        Read image with F5
-        
-        :param self: Description
-        :param event: Description
-        """
+        Read image with F5 and auto-generate routing network (Phase 7).
 
+        User loads GeoTIFF terrain file, system automatically generates
+        routing mesh for immediate route computation via GUI.
+
+        Per D-01: Auto-trigger after terrain load.
+        Per D-02: Fixed 200m mesh spacing for v1.
+        Per D-03: Cursor progress indication during generation.
+        Per D-04: Warning dialogs for all error types.
+        Per D-05: Validate network non-emptily before assignment.
+        Per D-06: Network replacement on re-load (hot reload).
+
+        :param self: Instance of the class
+        :param event: Keyboard event (F5 key press)
+        """
+        # Load terrain data
         self._image.read_image()
         self._world_file = self._image._world_file
-        print(f'WORLD FILE SET IN READ_IMAGE (F5): {self._world_file}') #REMOVE
+        print(f"WORLD FILE SET (F5): {self._world_file}")  # Debug output
 
-        epsg = utilities.epsg()
-        if epsg is not None:
-            self._epsg = epsg
+        # Use embedded EPSG from GeoTIFF if available, otherwise prompt user
+        if self._image.epsg is not None:
+            self._epsg = self._image.epsg
+            print(f"EPSG set from terrain file: {self._epsg}")
+        else:
+            epsg = utilities.epsg()
+            if epsg is not None:
+                self._epsg = epsg
+                print(f"EPSG set from user input: {self._epsg}")
+
+        # === Phase 7: Auto-generate routing network from terrain ===
+        try:
+            # Progress indication: cursor changes to watch
+            self._root.config(cursor='watch')
+            self._root.update_idletasks()
+            print("Generating routing network from terrain...")
+
+            # Generate mesh with fixed 200m spacing (v1)
+            # Disable water queries for v1 to avoid blocking OSM API calls in GUI
+            routing_net = terrain_mesh_from_raster(
+                self._image,
+                mesh_spacing=200,  # Fixed per D-02: performance vs detail tradeoff
+                enable_water_queries=False  # FIXME: Phase 4 water penalties should use non-blocking approach
+            )
+
+            # Validate network before assignment (D-05)
+            if len(routing_net.graph.nodes) == 0:
+                utilities.warning(
+                    "Mesh generation produced empty network. "
+                    "Terrain data may be invalid."
+                )
+                print("Warning: Empty network, not assigned to screen.")
+            else:
+                # Assign network to screen (Phase 6 integration)
+                self.set_route_network(routing_net)
+                print(f"Mesh network created and assigned: "
+                      f"{len(routing_net.graph.nodes)} nodes, "
+                      f"{len(routing_net.graph.edges)} edges")
+
+            # Display the terrain image on canvas
+            if self._image and hasattr(self._image, '_photoimage') and self._image._photoimage:
+                self._canvas.delete('all')
+                self._canvas.create_image(0, 0, image=self._image._photoimage, anchor='nw')
+                print("Terrain image displayed on canvas")
+
+        except Exception as e:
+            # Error handling with warning dialog (D-04)
+            utilities.warning(f"Failed to generate routing network: {e}")
+            print(f"Mesh generation error: {e}")
+        finally:
+            # Restore cursor even if fails (D-03)
+            self._root.config(cursor='arrow')
 
     def _draw_image(self, event):
 
@@ -447,6 +511,167 @@ class Screen():
 
         # Display route on canvas
         self.display_route(network_coords)
+
+    def set_route_network(self, network):
+        """
+        Assign a routing network to the screen for path computation.
+
+        Args:
+            network: RoutingNetwork instance containing graph and node coordinates
+
+        Raises:
+            ValueError: If network is not a RoutingNetwork instance
+
+        Per D-02: Network provides EPSG context for coordinate transformations.
+        """
+        if not isinstance(network, RoutingNetwork):
+            raise ValueError(
+                f"Expected RoutingNetwork instance, got {type(network).__name__}"
+            )
+
+        self._route_network = network
+        print(f'Routing network assigned to screen. Graph has '
+              f'{len(network.graph.nodes)} nodes, {len(network.graph.edges)} edges')
+
+    def _compute_and_display_route(self):
+        """
+        Compute and display route between selected start and end points.
+
+        Workflow:
+        1. Validate prerequisites (network, world file, coordinates)
+        2. Transform screen coords -> world coords -> network EPSG coords
+        3. Snap to nearest graph nodes (find_nearest_node)
+        4. Compute shortest path (shortest_path)
+        5. Map node IDs -> network coordinates
+        6. Transform network coords -> world coords -> screen coords
+        7. Store for GPX export and display route
+
+        Per D-01: Auto-triggered after end point selection.
+        Per D-02: Screen -> World -> Network EPSG coordinate mapping.
+        Per D-03: Snap to nearest graph node.
+        Per D-04: Message dialog for all error types.
+
+        Error handling: All user-facing errors trigger utilities.warning().
+        """
+        # === 1. Validate prerequisites ===
+        if self._start_point is None or self._end_point is None:
+            utilities.warning('Both start and end points must be selected')
+            return
+
+        if self._route_network is None:
+            utilities.warning('Routing network not loaded. Load network data first.')
+            return
+
+        if self._world_file is None:
+            utilities.warning('No world file loaded. Load an image with world file (F5).')
+            return
+
+        if len(self._route_network.graph.nodes) == 0:
+            utilities.warning('Routing network is empty. Load trail or terrain data first.')
+            return
+
+        # === 2. Transform screen to world coordinates ===
+        try:
+            start_world = utilities.screen_to_world(
+                self._start_point, self._world_file
+            )
+            end_world = utilities.screen_to_world(
+                self._end_point, self._world_file
+            )
+        except Exception as e:
+            utilities.warning(f'Failed to transform screen coordinates: {e}')
+            print(f'Debug: screen_to_world error: {e}')
+            return
+
+        # === 3. Transform world to network EPSG coordinates ===
+        try:
+            if self._epsg is None or self._route_network.epsg is None:
+                utilities.warning('Coordinate systems undefined')
+                return
+
+            transformer = pyproj.Transformer.from_crs(
+                pyproj.CRS.from_epsg(self._epsg),
+                pyproj.CRS.from_epsg(self._route_network.epsg),
+                always_xy=True
+            )
+
+            start_network = transformer.transform(*start_world)
+            end_network = transformer.transform(*end_world)
+        except pyproj.exceptions.CRSError as e:
+            utilities.warning(f'Coordinate system mismatch: {e}')
+            return
+        except Exception as e:
+            utilities.warning(f'Failed to project to network coordinates: {e}')
+            print(f'Debug: projection error: {e}')
+            return
+
+        # === 4. Show progress indication ===
+        self._root.config(cursor='watch')
+        self._root.update_idletasks()
+
+        try:
+            # === 5. Snap to nearest graph nodes ===
+            start_node, start_dist = self._route_network.find_nearest_node(
+                start_network[0], start_network[1]
+            )
+            end_node, end_dist = self._route_network.find_nearest_node(
+                end_network[0], end_network[1]
+            )
+
+            if start_node is None or end_node is None:
+                utilities.warning('Failed to find nearest nodes in routing network')
+                return
+
+            # === 6. Compute shortest path ===
+            try:
+                path_node_ids = self._route_network.shortest_path(start_node, end_node)
+            except nx.exception.NetworkXNoPath:
+                utilities.warning(
+                    'No path found between selected points.\n'
+                    'Are points in disconnected network components?'
+                )
+                return
+            except Exception as e:
+                utilities.warning(f'Path computation failed: {e}')
+                return
+
+            # === 7. Map node IDs to network coordinates ===
+            route_network_coords = [
+                self._route_network.node_coords[node_id]
+                for node_id in path_node_ids
+            ]
+
+            if not route_network_coords:
+                utilities.warning('Route computation produced empty path')
+                return
+
+            # === 8. Store for GPX export ===
+            self._route_network_coords = route_network_coords
+
+            # === 9. Transform network coordinates to screen coordinates ===
+            try:
+                route_screen_coords = []
+                for coord in route_network_coords:
+                    screen_coord = self.world_to_screen(coord)
+                    if screen_coord is None:
+                        utilities.warning('Failed to transform route to screen coordinates')
+                        return
+                    route_screen_coords.append(screen_coord)
+            except Exception as e:
+                utilities.warning(f'Failed to transform route to screen: {e}')
+                print(f'Debug: world_to_screen error: {e}')
+                return
+
+            # === 10. Display route ===
+            self.set_route(route_network_coords)
+
+            # Print routing stats for debugging
+            print(f'Route computed: {len(route_screen_coords)} vertices, '
+                  f'{start_dist:.1f}m from start node, {end_dist:.1f}m from end node')
+
+        finally:
+            # === 11. Restore cursor ===
+            self._root.config(cursor='arrow')
 
     def export_gpx(self, event=None):
         """

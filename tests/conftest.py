@@ -53,3 +53,194 @@ def elevation_grid():
         [100, 150, 150, 100],  # Row 2: shallow climb from left
         [100, 100, 100, 100],  # Row 3: flat bottom edge
     ])
+
+
+# =============================================================================
+# Phase 6: GUI Routing Integration Fixtures
+# =============================================================================
+
+# Import geospatial modules (may fail in headless environments - fixtures handle this)
+try:
+    from screen_2026 import Screen
+    from routing_2026 import RoutingNetwork
+    _SCREEN_AVAILABLE = True
+except Exception:
+    _SCREEN_AVAILABLE = False
+
+
+@pytest.fixture
+def mock_screen():
+    """
+    Create mock screen with world file for coordinate transformations.
+
+    World file: [a, d, b, e, c, f] where:
+    - screen_to_world: x_w = a*x + b*y + c, y_w = d*x + e*y + f
+    - This world file maps screen pixels to UTM 32V coordinates (Norway)
+
+    Returns:
+        Screen: Mock screen instance with world file and EPSG set
+    """
+    if not _SCREEN_AVAILABLE:
+        pytest.skip("Screen module not available")
+
+    from unittest.mock import patch
+
+    with patch('screen_2026.tkinter.Tk'):
+        screen = Screen()
+        # World file for coordinate transforms
+        screen._world_file = [10.0, 0.0, 0.0, -10.0, 600000.0, 6650000.0]
+        screen._epsg = 32632  # UTM Zone 32V (Norway)
+
+        return screen
+
+
+@pytest.fixture
+def routing_network():
+    """
+    Create a small synthetic routing network for testing.
+
+    Creates a linear chain of 5 nodes with bidirectional edges.
+
+    Returns:
+        RoutingNetwork: Small test network with EPSG 32632
+    """
+    if not _SCREEN_AVAILABLE:
+        pytest.skip("RoutingNetwork module not available")
+
+    network = RoutingNetwork()
+
+    # Add nodes in a line
+    for i in range(5):
+        node_id = f'test_{i}'
+        x = 600000.0 + i * 100
+        y = 6650000.0 + i * 50
+        network.add_node(node_id, x, y)
+
+    # Add bidirectional edges
+    for i in range(4):
+        source = f'test_{i}'
+        target = f'test_{i+1}'
+        network.add_edge(source, target, weight=100.0)
+        network.add_edge(target, source, weight=100.0)
+
+    network.epsg = 32632
+
+    return network
+
+
+@pytest.fixture
+def screen_with_network(mock_screen, routing_network):
+    """
+    Create mock screen with attached routing network.
+
+    Combines mock_screen and routing_network fixtures for integration tests.
+
+    Returns:
+        tuple: (screen, network) where screen._route_network is set to network
+    """
+    # Assign network to screen
+    mock_screen.set_route_network(routing_network)
+
+    return (mock_screen, routing_network)
+
+
+# =============================================================================
+# Phase 7: Terrain Auto-Mesh Generation Fixtures
+# =============================================================================
+
+# Import geospatial modules (may fail in headless environments - fixtures handle this)
+try:
+    from screen_2026 import Screen
+    from raster_2026 import Raster
+    from routing_2026 import RoutingNetwork
+    _MODULES_AVAILABLE = True
+except Exception:
+    _MODULES_AVAILABLE = False
+
+
+@pytest.fixture
+def mock_geotiff_raster():
+    """
+    Create mock Raster instance with GeoTIFF attributes.
+
+    Simulates a loaded GeoTIFF with:
+    - 100x100 elevation grid (flat terrain at 100m)
+    - EPSG: 32632 (UTM Zone 32V)
+    - World file for coordinate transforms
+
+    Returns:
+        Raster: Mock raster instance ready for mesh generation
+    """
+    if not _MODULES_AVAILABLE:
+        pytest.skip("Geospatial modules not available")
+
+    raster = Raster()
+    raster._filename = "test_terrain.tif"
+    raster._elevation_grid = np.ones((100, 100)) * 100.0  # 100m elevation constant
+    raster._epsg = 32632
+    raster._world_file = [50.0, 0.0, 0.0, -50.0, 600000.0, 6650000.0]
+    return raster
+
+
+@pytest.fixture
+def screen_with_loaded_terrain(mock_geotiff_raster):
+    """
+    Create mock screen with loaded terrain raster.
+
+    Simulates state after F5 user action (terrain loaded).
+    Auto-mesh should trigger next.
+
+    Returns:
+        Screen: Mock screen with _image (raster) loaded
+    """
+    if not _MODULES_AVAILABLE:
+        pytest.skip("Geospatial modules not available")
+
+    from unittest.mock import patch
+
+    with patch('screen_2026.tkinter.Tk'):
+        screen = Screen()
+        screen._epsg = 32632  # UTM Zone 32V
+        screen._world_file = [50.0, 0.0, 0.0, -50.0, 600000.0, 6650000.0]
+        screen._image = mock_geotiff_raster
+        return screen
+
+
+@pytest.fixture
+def screen_with_terrain_network(screen_with_loaded_terrain):
+    """
+    Create mock screen with both terrain and routing network (Phase 7).
+
+    Simulates complete state after auto-mesh generation from terrain.
+
+    Returns:
+        tuple: (screen, network) where screen._route_network is set
+    """
+    if not _MODULES_AVAILABLE:
+        pytest.skip("Geospatial modules not available")
+
+    screen = screen_with_loaded_terrain
+
+    # Create small routing network (simulate auto-mesh output)
+    network = RoutingNetwork()
+    network.epsg = 32632
+
+    # Add 4 nodes in a small grid
+    node_coords = [
+        (0, 600000.0, 6650000.0),
+        (1, 600100.0, 6650000.0),
+        (2, 600100.0, 6650100.0),
+        (3, 600000.0, 6650100.0)
+    ]
+
+    for node_id, x, y in node_coords:
+        network.add_node(node_id, x, y)
+
+    # Add bidirectional edges
+    edges = [(0, 1), (1, 2), (2, 3), (3, 0), (0, 2)]
+    for u, v in edges:
+        network.add_edge(u, v, weight=100.0)
+        network.add_edge(v, u, weight=100.0)
+
+    screen._route_network = network
+    return (screen, network)

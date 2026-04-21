@@ -29,7 +29,9 @@ geoformats = {
     'csv': ('CSV Files', '*.csv'),
     'geojson': ('GeoJSON Files', '*.geojson'),
     'shp': ('Shapefiles', '*.shp'),
-    'png': ('PNG Files', '*.png')
+    'png': ('PNG Files', '*.png'),
+    'tif': ('TIFF Files', '*.tif'),
+    'tiff': ('TIFF Files', '*.tiff')
 }
 
 
