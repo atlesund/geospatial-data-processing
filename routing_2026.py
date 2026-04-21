@@ -390,7 +390,7 @@ def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
     return (None, 1.0)
 
 
-def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
+def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=True):
     """
     Generate a regular mesh node grid from terrain raster.
 
@@ -402,6 +402,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
         raster: Raster instance with DTM data
         mesh_spacing: Distance between mesh nodes (meters in projection)
         bbox: Optional bounding box (x_min, y_min, x_max, y_max)
+        enable_water_queries: If False, skip water feature queries for testing/faster execution
 
     Returns:
         RoutingNetwork with regular mesh topology and water-aware edge weights
@@ -461,20 +462,26 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None):
     y_coords = [coord[1] for coord in routing_net.node_coords.values()]
     bbox_local = (min(x_coords), min(y_coords), max(x_coords), max(y_coords))
 
-    # Convert bbox from local CRS to EPSG:4326 for osmnx query
-    # Use pyproj transformer for CRS conversion
-    try:
-        from pyproj import Transformer
-        transformer = Transformer.from_crs(f"EPSG:{raster.epsg}", "EPSG:4326", always_xy=True)
-        west, south = transformer.transform(bbox_local[0], bbox_local[1])
-        east, north = transformer.transform(bbox_local[2], bbox_local[3])
-        bbox_osm = (west, south, east, north)
+    # Query water features only if enabled per D-01/D-02
+    if enable_water_queries:
+        print("Water queries enabled, querying OSM water features...")
+        # Convert bbox from local CRS to EPSG:4326 for osmnx query
+        # Use pyproj transformer for CRS conversion
+        try:
+            from pyproj import Transformer
+            transformer = Transformer.from_crs(f"EPSG:{raster.epsg}", "EPSG:4326", always_xy=True)
+            west, south = transformer.transform(bbox_local[0], bbox_local[1])
+            east, north = transformer.transform(bbox_local[2], bbox_local[3])
+            bbox_osm = (west, south, east, north)
 
-        # Query water features per D-01/D-02
-        lakes_gdf, rivers_gdf = load_water_features(bbox_osm, raster.epsg)
-    except Exception as e:
-        # Fallback to no-water-penalty mode if bbox conversion/query fails
-        print(f"Warning: Water feature query failed ({e}), routing without water penalties")
+            # Query water features per D-01/D-02
+            lakes_gdf, rivers_gdf = load_water_features(bbox_osm, raster.epsg)
+        except Exception as e:
+            # Fallback to no-water-penalty mode if bbox conversion/query fails
+            print(f"Warning: Water feature query failed ({e}), routing without water penalties")
+            lakes_gdf, rivers_gdf = None, None
+    else:
+        print("Info: Water queries disabled, routing without water penalties")
         lakes_gdf, rivers_gdf = None, None
 
     # Second pass: create edges with terrain and water penalties
