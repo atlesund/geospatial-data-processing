@@ -5,7 +5,7 @@ milestone_name: milestone
 status: milestone_complete
 stopped_at: All v1 phases complete
 last_updated: "2026-04-22T10:00:00.000Z"
-last_activity: 2026-04-22 -- ROADMAP and STATE updated to reflect Phase 4 completion
+last_activity: 2026-04-22 - Completed quick task 260422-jg5: Create an isolated test which tests phase 04, give it some bbox and query the water metadata for that box.
 progress:
   total_phases: 6
   completed_phases: 6
@@ -114,6 +114,7 @@ None yet.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 260422-jg5 | Create an isolated test which tests phase 04, give it some bbox and query the water metadata for that box. | 2026-04-22 | 3ff928a | [260422-jg5-create-an-isolated-test-which-tests-phas](./quick/260422-jg5-create-an-isolated-test-which-tests-phas/) |
 | 260416-ipm | Fix test_v1_complete.py: fix syntax errors and add usage docstring | 2026-04-16 | a1fa1a9 | [260416-ipm-fix-test-v1-complete-py-fix-syntax-error](./quick/260416-ipm-fix-test-v1-complete-py-fix-syntax-error/) |
 | 260412-pd7 | Fix known bugs (intersection logic, validation typo) and update requirements.txt | 2026-04-12 | 2f253fc | [260412-pd7-fix-the-known-bugs](./quick/260412-pd7-fix-the-known-bugs-under-concerns-and-ma/) |
 
