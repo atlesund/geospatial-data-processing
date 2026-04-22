@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Map Interaction
 
-- [ ] **MAP-01**: User can select start point by clicking on interactive map
-- [ ] **MAP-02**: User can select end point by clicking on interactive map
-- [ ] **MAP-03**: User can pan the map to navigate to different areas
-- [ ] **MAP-04**: User can zoom in/out to adjust map scale
-- [ ] **MAP-05**: System displays selected coordinates in decimal degrees format
+- [x] **MAP-01**: User can select start point by clicking on interactive map
+- [x] **MAP-02**: User can select end point by clicking on interactive map
+- [x] **MAP-03**: User can pan the map to navigate to different areas
+- [x] **MAP-04**: User can zoom in/out to adjust map scale
+- [x] **MAP-05**: System displays selected coordinates in decimal degrees format
 
 ### Route Configuration
 
@@ -21,15 +21,15 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Route Computation
 
-- [ ] **COMP-01**: System applies penalties for water body crossings (lakes, rivers, fjords)
-- [ ] **COMP-02**: System applies fixed penalties for steep terrain to ensure realistic hiking routes
+- [x] **COMP-01**: System applies penalties for water body crossings (lakes, rivers, fjords)
+- [x] **COMP-02**: System applies fixed penalties for steep terrain to ensure realistic hiking routes
 - [x] **COMP-03**: System combines established hiking trails into routing network
 - [x] **COMP-04**: System incorporates OpenStreetMap paths and trails where available
 - [x] **COMP-05**: System uses terrain-based routing where trail network incomplete
 
 ### Route Visualization
 
-- [ ] **VIZ-01**: System displays computed route polyline on interactive map with distinct visualization
+- [x] **VIZ-01**: System displays computed route polyline on interactive map with distinct visualization
 
 ### Export
 
@@ -99,24 +99,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MAP-01 | Phase 1 | Pending |
-| MAP-02 | Phase 1 | Pending |
-| MAP-03 | Phase 1 | Pending |
-| MAP-04 | Phase 1 | Pending |
-| MAP-05 | Phase 1 | Pending |
-| COMP-01 | Phase 4 | Pending |
-| COMP-02 | Phase 3 | Pending |
+| MAP-01 | Phase 1 | Complete |
+| MAP-02 | Phase 1 | Complete |
+| MAP-03 | Phase 1 | Complete |
+| MAP-04 | Phase 1 | Complete |
+| MAP-05 | Phase 1 | Complete |
+| COMP-01 | Phase 4 | Complete |
+| COMP-02 | Phase 3 | Complete |
 | COMP-03 | Phase 2 | Complete |
 | COMP-04 | Phase 2 | Complete |
 | COMP-05 | Phase 2 | Complete |
-| VIZ-01 | Phase 5 | Pending |
+| VIZ-01 | Phase 5 | Complete |
 | EXP-01 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Mapped to phases: 12
-- Unmapped: 0 ✓
+- Complete: 12
+- Pending: 0 ✓
 
 ---
 *Requirements defined: 2026-04-12*
-*Last updated: 2026-04-12 after initial definition*
+*Last updated: 2026-04-22 - All v1 requirements complete*

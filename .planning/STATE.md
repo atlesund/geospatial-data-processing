@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: milestone_complete
-stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-04-20T19:25:17.940Z"
-last_activity: 2026-04-20 -- Phase --phase execution started
+stopped_at: All v1 phases complete
+last_updated: "2026-04-22T10:00:00.000Z"
+last_activity: 2026-04-22 -- ROADMAP and STATE updated to reflect Phase 4 completion
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 26
-  completed_plans: 22
+  completed_plans: 26
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-12)
 
 **Core value:** Generate safe, optimal hiking routes between any two points in Norway using terrain and hydrography data, with a simple interface for route planning and export
-**Current focus:** Phase --phase — 6
+**Current focus:** v1 milestone complete - all 6 phases implemented
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 6 (final phase)
+Plan: All complete
 Status: Milestone complete
-Last activity: 2026-04-20
+Last activity: 2026-04-22
 
-Progress: [██████████] 100% — 6/6 plans, 28/28 tests passing
+Progress: [██████████] 100% — All 6 phases complete, 26/26 plans executed
 
 ## Performance Metrics
 
@@ -42,12 +42,14 @@ Progress: [██████████] 100% — 6/6 plans, 28/28 tests passi
 
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01 | 3 | 3 | 8.7 min |
-| 02 | 6 | 9 | 8.5 min |
-| 03 | 5 | - | - |
-| 6 | 4 | - | - |
+| Phase | Plans | Complete |
+|-------|-------|----------|
+| 01 | 3 | 3/3 |
+| 02 | 4 | 4/4 |
+| 03 | 4 | 4/4 |
+| 04 | 4 | 4/4 |
+| 05 | 4 | 4/4 |
+| 06 | 4 | 4/4 |
 
 **Recent Trend:**
 
@@ -81,6 +83,14 @@ Recent decisions affecting current work:
 - [Phase 02]: Node ID prefixing as string concatenation (f'{prefix}{node_id}')
 - [Phase 02]: EPSG validation raises ValueError with clear error message listing conflicting codes
 - [Phase 02]: Default prefixes generated as f'n{i}_' if not provided for network merge
+- [Phase 03]: Slope calculation uses atan(elevation_diff / edge_length) converted to degrees
+- [Phase 03]: 20° slope threshold before penalties apply
+- [Phase 03]: Linear penalty scaling: penalty_factor = 1.0 + 0.2 × (slope - 20°)
+- [Phase 03]: Penalty factor clamped to max 100 to prevent DoS
+- [Phase 04]: OSM water feature query via osmnx.features_from_bbox() with dynamic querying at route planning time
+- [Phase 04]: Water penalties: lakes=10×, rivers=5×, fjords=50×
+- [Phase 04]: Point-in-polygon detection for lakes, line-intersection for rivers
+- [Phase 04]: Combined penalty = terrain_penalty × water_penalty_factor (multiplicative)
 
 ### Roadmap Evolution
 
@@ -109,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-19T09:28:15.002Z
-Stopped at: Phase 6 UI-SPEC approved
-Resume file: .planning/phases/06-gui-routing-integration-connect-point-selection-with-routing/06-UI-SPEC.md
+Last session: 2026-04-22T10:00:00.000Z
+Stopped at: ROADMAP and STATE updated - Phase 4 marked complete
+Note: Phase 4 was fully implemented (April 14) but ROADMAP.md wasn't updated to reflect completion. Updated today.
