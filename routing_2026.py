@@ -306,18 +306,19 @@ def load_water_features(bbox, target_epsg, timeout=30):
     assert south < north, f"bbox south ({south}) must be less than north ({north})"
 
     try:
+        # Configure timeout for osmnx API requests (global setting in osmnx 2.1.0)
+        ox.settings.requests_timeout = timeout
+
         # Query lakes with tags: {'natural': 'water'}
         lakes = ox.features_from_bbox(
             (west, south, east, north),
-            tags={'natural': 'water'},
-            timeout=timeout
+            tags={'natural': 'water'}
         )
 
         # Query rivers with tags: {'waterway': ['river', 'stream', 'canal']}
         rivers = ox.features_from_bbox(
             (west, south, east, north),
-            tags={'waterway': ['river', 'stream', 'canal']},
-            timeout=timeout
+            tags={'waterway': ['river', 'stream', 'canal']}
         )
 
         # Project to target CRS
