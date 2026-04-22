@@ -161,6 +161,7 @@ class Raster():
                 # Load elevation data (first band)
                 # Convert to float32 for mathematical operations
                 elevation_data = src.read(1)
+                # To make it compatible with NaN
                 self._elevation_grid = elevation_data.astype(np.float32)
 
                 # Handle nodata values - replace with NaN for consistency
@@ -222,7 +223,7 @@ class Raster():
         Returns:
             tkinter.PhotoImage instance
         """
-        # Handle NaN values for display
+        # Handle NaN values for display with boolean masking
         valid_mask = ~np.isnan(elevation_grid)
         valid_elevations = elevation_grid[valid_mask]
 

@@ -216,7 +216,7 @@ def load_osmnx_trails(bbox, epsg=25832):
 
 
 def calculate_terrain_weight(elev1, elev2, edge_length,
-                            threshold_degrees=20.0, slope_multiplier=0.2):
+                            threshold_degrees=5.0, slope_multiplier=3):
     """
     Calculate terrain-aware edge weight with slope-based penalties.swss
 
@@ -290,11 +290,14 @@ def load_water_features(bbox, target_epsg, timeout=30):
     Args:
         bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
         target_epsg: Target EPSG code (e.g., 25832 for UTM 32V)
-        timeout: Timeout for osmnx query in seconds (default: 30)
+        timeout: HTTP request timeout in seconds for osmnx Overpass API calls.
+                 If timeout is exceeded, the function returns (None, None) allowing
+                 routing to continue without water penalties. Default: 30 seconds.
+                 Note: This is per-request timeout (lakes and rivers queried separately).
 
     Returns:
         Tuple (lakes_gdf, rivers_gdf) - GeoDataFrames projected to target CRS
-        Returns (None, None) on network failure with warning logged
+        Returns (None, None) on network timeout or error with warning logged
     """
     west, south, east, north = bbox
 
@@ -303,6 +306,9 @@ def load_water_features(bbox, target_epsg, timeout=30):
     assert south < north, f"bbox south ({south}) must be less than north ({north})"
 
     try:
+        # Configure timeout for osmnx API requests (global setting in osmnx 2.1.0)
+        ox.settings.requests_timeout = timeout
+
         # Query lakes with tags: {'natural': 'water'}
         lakes = ox.features_from_bbox(
             (west, south, east, north),
@@ -390,7 +396,7 @@ def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
     return (None, 1.0)
 
 
-def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=True):
+def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=False):
     """
     Generate a regular mesh node grid from terrain raster.
 

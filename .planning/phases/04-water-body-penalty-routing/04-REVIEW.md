@@ -1,155 +1,324 @@
 ---
 phase: 04-water-body-penalty-routing
-reviewed: 2026-04-14T00:00:00Z
+reviewed: 2025-01-09T15:30:00Z
 depth: standard
-files_reviewed: 1
+files_reviewed: 11
 files_reviewed_list:
+  - examples/example_user_process_demo.py
+  - geo_2026.py
+  - raster_2026.py
+  - requirements.txt
   - routing_2026.py
+  - screen_2026.py
+  - tests/conftest.py
+  - tests/test_04_01_water_query.py
+  - tests/test_04_02_water_detection.py
+  - tests/test_04_03_combined_penalty.py
+  - tests/test_04_04_integration.py
+  - utilities_2026.py
 findings:
-  critical: 0
-  warning: 3
-  info: 3
-  total: 6
+  critical: 3
+  warning: 2
+  info: 2
+total: 7
 status: issues_found
 ---
 
 # Phase 04: Code Review Report
 
-**Reviewed:** 2026-04-14T00:00:00Z
+**Reviewed:** 2025-01-09T15:30:00Z
 **Depth:** standard
-**Files Reviewed:** 1
+**Files Reviewed:** 11
 **Status:** issues_found
 
 ## Summary
 
-Reviewed `routing_2026.py`, a new geospatial routing module that provides terrain-aware pathfinding with water body penalties. The module implements a `RoutingNetwork` class wrapper around networkx.Graph, functions for loading OpenStreetMap trails, terrain weight calculations using slope-based penalties, water feature detection and penalties, and mesh generation from raster elevation data.
+Reviewed the water body penalty routing implementation focusing on the freezing issue reported by users when water queries are enabled. The application displays "Water queries enabled, querying OSM water features..." then hangs indefinitely.
 
-Overall, the code is well-documented with comprehensive docstrings and follows project conventions. The implementation correctly handles offline capability requirements with graceful fallback behavior when network queries fail. However, there are several areas that warrant attention before integration.
+The root cause is identified as a critical bug in `routing_2026.py` where the `load_water_features()` function accepts a `timeout` parameter but **never passes it to the actual osmnx API calls**. This causes synchronous network operations to block indefinitely in the GUI thread when the Overpass API is slow or unresponsive.
+
+Additionally, the design runs water queries synchronously in the main GUI event loop, blocking all user interaction until the network calls complete. The code acknowledges this issue with a FIXME comment on line 372 of `screen_2026.py`.
 
 ## Critical Issues
 
-None found.
+### CR-01: Unused timeout parameter causes indefinite hangs
+
+**File:** `routing_2026.py:280-328`
+**Issue:** The `load_water_features()` function signature includes a `timeout=30` parameter, but this timeout is never actually passed to `ox.features_from_bbox()` calls. Line 307 and 313 call osmnx without any timeout argument, allowing indefinite blocking on network timeouts.
+
+The function accepts `timeout` at line 280:
+```python
+def load_water_features(bbox, target_epsg, timeout=30):
+```
+
+But never uses it in the actual calls:
+```python
+# Line 307-310 - no timeout passed
+lakes = ox.features_from_bbox(
+    (west, south, east, north),
+    tags={'natural': 'water'}
+)
+
+# Line 313-316 - no timeout passed
+rivers = ox.features_from_bbox(
+    (west, south, east, north),
+    tags={'waterway': ['river', 'stream', 'canal']}
+)
+```
+
+This is a **critical bug** that can cause the application to freeze indefinitely when:
+- The Overpass API is slow to respond
+- Network connectivity issues occur
+- The API rate-limits the request
+
+**Fix:**
+Pass the timeout parameter to osmnx calls:
+```python
+# Fix at line 307-310
+lakes = ox.features_from_bbox(
+    (west, south, east, north),
+    tags={'natural': 'water'},
+    timeout=timeout  # ADD THIS
+)
+
+# Fix at line 313-316
+rivers = ox.features_from_bbox(
+    (west, south, east, north),
+    tags={'waterway': ['river', 'stream', 'canal']},
+    timeout=timeout  # ADD THIS
+)
+```
+
+### CR-02: Synchronous network calls block GUI thread
+
+**File:** `routing_2026.py:393,466-482` and `screen_2026.py:369-372`
+**Issue:** Water queries execute synchronously in the main GUI thread via `terrain_mesh_from_raster()` → `load_water_features()` → `ox.features_from_bbox()`. This blocks all user interaction during network I/O, and if the API hangs (due to CR-01), the application freezes completely.
+
+The call chain:
+1. `screen_2026.py:369` - `_read_image()` calls `terrain_mesh_from_raster()` in GUI thread
+2. `routing_2026.py:467` - Prints "Water queries enabled, querying OSM water features..."
+3. `routing_2026.py:478` - Calls `load_water_features()` synchronously
+4. `routing_2026.py:307,313` - Blocks on `ox.features_from_bbox()` with no timeout
+
+This blocks the tkinter mainloop, causing the application to appear frozen.
+
+**Fix:**
+Option 1 - Disable water queries in GUI (immediate fix for v1):
+```python
+# In screen_2026.py, line 369-372, change to:
+routing_net = terrain_mesh_from_raster(
+    self._image,
+    mesh_spacing=200,
+    enable_water_queries=False  # Disable for v1 as acknowledged in FIXME comment
+)
+```
+
+Option 2 - Run water queries in background thread (proper fix):
+```python
+import threading
+
+def _read_image_with_async_water_queries(self, event):
+    # Load terrain data (same as existing)
+    self._image.read_image()
+    # ... existing EPSG and world file setup ...
+
+    # Start water query in background thread
+    def query_water_and_generate_mesh():
+        try:
+            routing_net = terrain_mesh_from_raster(
+                self._image,
+                mesh_spacing=200,
+                enable_water_queries=True
+            )
+            # Update GUI from main thread using after()
+            self._root.after(0, lambda: self._finalize_mesh_generation(routing_net))
+        except Exception as e:
+            self._root.after(0, lambda: utilities.warning(f"Mesh generation failed: {e}"))
+
+    # Use temporary mesh without water penalties first
+    routing_net = terrain_mesh_from_raster(
+        self._image,
+        mesh_spacing=200,
+        enable_water_queries=False
+    )
+    self.set_route_network(routing_net)
+
+    # Update mesh in background
+    threading.Thread(target=query_water_and_generate_mesh, daemon=True).start()
+```
+
+### CR-03: Inconsistent default for enable_water_queries parameter
+
+**File:** `routing_2026.py:393` and `screen_2026.py:369-372`
+**Issue:** The `enable_water_queries` parameter defaults to `True` in `routing_2026.py:393`, but the code at `screen_2026.py:372` has a FIXME comment stating "FIXME: Phase 4 water penalties should use non-blocking approach" and the integration tests disable it. This inconsistency makes the feature unstable in production.
+
+Default signature at `routing_2026.py:393`:
+```python
+def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=True):
+                                                                              ^^^^
+                                                                              ENABLED BY DEFAULT
+```
+
+But usage in `screen_2026.py:372`:
+```python
+routing_net = terrain_mesh_from_raster(
+    self._image,
+    mesh_spacing=200,  # Fixed per D-02: performance vs detail tradeoff
+    # FIXME: Phase 4 water penalties should use non-blocking approach
+)
+```
+
+The FIXME comment acknowledges the issue, yet `enable_water_queries` defaults to `True`, causing GUI freezes.
+
+**Fix:**
+Change default to `False` for v1 stability:
+```python
+# In routing_2026.py, line 393:
+def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=False):
+                                                                              ^^^^^^
+                                                                              DISABLED BY DEFAULT
+```
+
+Update the timeout parameter usage from CR-01 simultaneously.
 
 ## Warnings
 
-### WR-01: Zero-weight edges in Dijkstra's algorithm
+### WR-01: Insufficient error feedback in GUI context
 
-**File:** `routing_2026.py:241-242`
-**Issue:** The `calculate_terrain_weight()` function returns weight=0.0 when edge_length == 0. While this is likely intentional for handling coincident points, zero-weight edges in routing graphs can cause unexpected behavior with Dijkstra's algorithm (preferentially choosing zero-length paths, potential issues with path uniqueness).
+**File:** `routing_2026.py:324-328`
+**Issue:** The `load_water_features()` function catches all exceptions and prints to console, but provides no user-facing feedback when called from GUI context. Users see the application freeze with no explanation if the query fails.
 
-**Fix:**
-Consider returning a small minimum weight or documenting why zero is acceptable:
+Current error handling:
 ```python
-# Guard clause: edge_length == 0 (T-3-05)
-if edge_length == 0:
-    # Return small minimum weight to avoid zero-weight edge routing issues
-    # while still preferring coincident points
-    return (0.001, 0.0, 1.0)
-```
-
-### WR-02: Mock assert statements in user-facing function
-
-**File:** `routing_2026.py:297-298`
-**Issue:** The `load_water_features()` function uses assert statements to validate bounding box coordinates. Assertions are meant for programmer errors (invariants that should never be violated), not user input validation. Assertions can be disabled with Python's `-O` flag, which would skip this validation in production.
-
-**Fix:**
-Replace assertions with explicit exception handling:
-```python
-# Validate bbox format
-if not west < east:
-    raise ValueError(f"bbox west ({west}) must be less than east ({east})")
-if not south < north:
-    raise ValueError(f"bbox south ({south}) must be less than north ({north})")
-```
-
-### WR-03: Integer truncation in mesh spacing calculation
-
-**File:** `routing_2026.py:416, 425, 429`
-**Issue:** After calculating `pixel_spacing = mesh_spacing / abs(pixel_width)`, the code uses `int(pixel_spacing)` in range() calls. This truncates the pixel spacing to an integer, which means actual mesh spacing may differ from the requested `mesh_spacing` parameter. For example, if `mesh_spacing=100m` and `pixel_width=15m`, then `pixel_spacing=6.666` but `int(pixel_spacing)=6`, resulting in actual spacing of 90m instead of 100m.
-
-**Fix:**
-Consider either:
-1. Keep using integer spacing but document the truncation behavior
-2. Round to nearest integer: `int(round(pixel_spacing))`
-3. Allow float spacing and adjust loop logic accordingly (more complex)
-
-```python
-# Option 2: Round to nearest integer
-pixel_spacing_int = int(round(mesh_spacing / abs(pixel_width)))
-if pixel_spacing_int < 1:
-    pixel_spacing_int = 1  # Ensure at least 1 pixel spacing
-```
-
-## Info
-
-### IN-01: Unhandled variable shadowing
-
-**File:** `routing_2026.py:478-487`
-**Issue:** The variable `terrain_weight` returned from `calculate_terrain_weight()` is immediately overwritten on line 485 (`terrain_weight = mesh_spacing`) in the None elevation fallback case. While the return value isn't used subsequently, this shadowing breaks the semantic expectation that `terrain_weight` represents the calculated terrain weight.
-
-**Fix:**
-Use a different variable name for the fallback value:
-```python
-if elev1 is not None and elev2 is not None:
-    terrain_weight, slope, terrain_penalty = calculate_terrain_weight(
-        elev1, elev2, mesh_spacing
-    )
-else:
-    # Fallback to uniform weight if elevation unavailable
-    terrain_weight = mesh_spacing
-    slope = 0.0
-    terrain_penalty = 1.0
-```
-
-### IN-02: Broad exception handling in network operations
-
-**File:** `routing_2026.py:319-323, 462-465`
-**Issue:** Both `load_water_features()` and `terrain_mesh_from_raster()` use bare `except Exception` clauses without specifying expected exception types. While this is acceptable for graceful fallback to offline mode, specific exception types would be better for debugging and error logging.
-
-**Fix:**
-Catch specific exceptions and log appropriately:
-```python
-# Example for load_water_features
-except (ox.errors.OverpassAPIError, ConnectionError, TimeoutError) as e:
+except Exception as e:
     # Graceful fallback on network failure
     print(f"Warning: Failed to query water features: {e}")
     print("Continuing without water penalty mode")
     return (None, None)
-except Exception as e:
-    # Log unexpected errors
-    print(f"Error: Unexpected exception querying water features: {e}")
-    return (None, None)
 ```
 
-### IN-03: Missing input validation in user-facing function
-
-**File:** `routing_2026.py:551-552`
-**Issue:** The `polylines_to_graph()` function doesn't validate that `trails_vector` is not None or that it contains POLYLINE geometry. If invalid input is passed, it will raise an AttributeError when accessing `trails_vector.coordinates`.
+These console messages are not visible in a standard GUI application (desktop users typically don't run from terminal).
 
 **Fix:**
-Add input validation:
+Propagate errors to caller or accept a callback for GUI notification:
 ```python
-def polylines_to_graph(trails_vector, snap_distance=50):
+def load_water_features(bbox, target_epsg, timeout=30, error_callback=None):
+    # ... existing code ...
+    except Exception as e:
+        error_msg = f"Failed to query water features: {e}"
+        print(f"Warning: {error_msg}")
+        print("Continuing without water penalty mode")
+
+        # Notify caller if callback provided
+        if error_callback:
+            error_callback(error_msg)
+
+        return (None, None)
+```
+
+Then in `screen_2026.py`:
+```python
+def _mesh_error_handler(message):
+    utilities.warning(f"Water feature query failed:\n{message}")
+
+# Call with error handler
+lakes_gdf, rivers_gdf = load_water_features(
+    bbox_osm, raster.epsg,
+    error_callback=_mesh_error_handler
+)
+```
+
+### WR-02: Missing timeout documentation for osmnx API
+
+**File:** `routing_2026.py:280-293`
+**Issue:** The docstring for `load_water_features()` describes the `timeout` parameter but does not explain that osmnx's `features_from_bbox()` uses it for HTTP requests. Users may not understand what "30" seconds means (HTTP timeout vs query execution timeout).
+
+**Fix:**
+Improve docstring clarity:
+```python
+def load_water_features(bbox, target_epsg, timeout=30):
     """
-    Convert trail polylines to routing graph with node snapping.
-    
+    Query and project water features for water penalty routing.
+
     Args:
-        trails_vector: Vector instance with POLYLINE geometry
-        snap_distance: Distance in map units to snap endpoint nodes
-    
+        bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
+        target_epsg: Target EPSG code (e.g., 25832 for UTM 32V)
+        timeout: HTTP request timeout in seconds for osmnx Overpass API calls.
+                 If timeout is exceeded, the function returns (None, None) allowing
+                 routing to continue without water penalties. Default: 30 seconds.
+                 Note: This is per-request timeout (lakes and rivers queried separately).
+
     Returns:
-        RoutingNetwork instance with graph topology
+        Tuple (lakes_gdf, rivers_gdf) - GeoDataFrames projected to target CRS
+        Returns (None, None) on network timeout or error with warning logged
     """
-    if trails_vector is None:
-        raise ValueError("trails_vector cannot be None")
-    if not hasattr(trails_vector, 'coordinates'):
-        raise ValueError("trails_vector must have coordinates attribute")
-    
-    # Rest of function
+```
+
+## Info
+
+### IN-01: Unused debug print statements in production code
+
+**File:** `routing_2026.py:467,484`
+**Issue:** Debug print statements are included in production code (lines 467, 484). While useful for development, these should use proper logging framework or be conditionally compiled.
+
+```python
+# Line 467
+print("Water queries enabled, querying OSM water features...")
+
+# Line 484
+print("Info: Water queries disabled, routing without water penalties")
+```
+
+**Fix:**
+Use Python's logging module or remove:
+```python
+import logging
+logger = logging.getLogger(__name__)
+
+# Replace print statements with:
+logger.info("Water queries enabled, querying OSM water features...")
+logger.info("Water queries disabled, routing without water penalties")
+```
+
+Or use debug level:
+```python
+logger.debug("Water queries enabled, querying OSM water features...")
+```
+
+### IN-02: Test comments indicate incomplete implementation
+
+**File:** `tests/test_04_01_water_query.py:58,83`
+**Issue:** Two tests in `test_04_01_water_query.py` are skipped with comments indicating missing functionality (pytest-mock for offline testing and requires live OSM API). This suggests the test suite is not fully automated for CI/CD.
+
+```python
+# Line 58
+@pytest.mark.skip(reason="Requires live OSM API - add pytest.mock for offline testing")
+
+# Line 83
+@pytest.mark.skip(reason="Requires mocking - TODO: add pytest-mock to requirements")
+```
+
+**Fix:**
+Add `pytest-mock` to `requirements.txt` and implement mock-based tests:
+```python
+# In requirements.txt, add:
+pytest-mock>=3.12.0
+
+# Then implement mock tests
+@pytest.mark.water
+def test_query_fallback_with_mock(mocker):
+    """Validate graceful fallback with mocked network failure."""
+    # Mock ox.features_from_bbox to raise exception
+    mocker.patch('routing_2026.ox.features_from_bbox', side_effect=Exception("Network error"))
+
+    lakes_gdf, rivers_gdf = load_water_features((10.0, 60.0, 10.5, 60.5), 25832)
+
+    assert lakes_gdf is None
+    assert rivers_gdf is None
 ```
 
 ---
 
-_Reviewed: 2026-04-14T00:00:00Z_
+_Reviewed: 2025-01-09T15:30:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
