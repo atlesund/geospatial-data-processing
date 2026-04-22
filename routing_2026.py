@@ -392,7 +392,7 @@ def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
     return (None, 1.0)
 
 
-def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=True):
+def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=False):
     """
     Generate a regular mesh node grid from terrain raster.
 
