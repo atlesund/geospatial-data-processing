@@ -216,7 +216,7 @@ def load_osmnx_trails(bbox, epsg=25832):
 
 
 def calculate_terrain_weight(elev1, elev2, edge_length,
-                            threshold_degrees=20.0, slope_multiplier=0.2):
+                            threshold_degrees=5.0, slope_multiplier=3):
     """
     Calculate terrain-aware edge weight with slope-based penalties.swss
 
@@ -306,13 +306,15 @@ def load_water_features(bbox, target_epsg, timeout=30):
         # Query lakes with tags: {'natural': 'water'}
         lakes = ox.features_from_bbox(
             (west, south, east, north),
-            tags={'natural': 'water'}
+            tags={'natural': 'water'},
+            timeout=timeout
         )
 
         # Query rivers with tags: {'waterway': ['river', 'stream', 'canal']}
         rivers = ox.features_from_bbox(
             (west, south, east, north),
-            tags={'waterway': ['river', 'stream', 'canal']}
+            tags={'waterway': ['river', 'stream', 'canal']},
+            timeout=timeout
         )
 
         # Project to target CRS
