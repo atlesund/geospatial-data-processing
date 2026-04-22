@@ -290,11 +290,14 @@ def load_water_features(bbox, target_epsg, timeout=30):
     Args:
         bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
         target_epsg: Target EPSG code (e.g., 25832 for UTM 32V)
-        timeout: Timeout for osmnx query in seconds (default: 30)
+        timeout: HTTP request timeout in seconds for osmnx Overpass API calls.
+                 If timeout is exceeded, the function returns (None, None) allowing
+                 routing to continue without water penalties. Default: 30 seconds.
+                 Note: This is per-request timeout (lakes and rivers queried separately).
 
     Returns:
         Tuple (lakes_gdf, rivers_gdf) - GeoDataFrames projected to target CRS
-        Returns (None, None) on network failure with warning logged
+        Returns (None, None) on network timeout or error with warning logged
     """
     west, south, east, north = bbox
 
