@@ -659,7 +659,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
             # Build spatial indexes for efficient water crossing detection (Phase 9 optimization)
             # This reduces water penalty calculation from O(n×m) to O(n log m)
-            lake_tree, river_tree = build_spatial_indexes(lakes_gdf, rivers_gdf)
+            lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(lakes_gdf, rivers_gdf)
         except Exception as e:
             # Fallback to no-water-penalty mode if bbox conversion/query fails
             print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
@@ -697,7 +697,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                 edge_end = routing_net.node_coords[left_id]
                 water_type, water_penalty_factor = detect_water_crossing(
                     edge_start, edge_end, lake_tree, river_tree,
-                    lakes_gdf=lakes_gdf, rivers_gdf=rivers_gdf
+                    lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
                 )
 
                 # Combine penalties multiplicatively per D-06
@@ -735,7 +735,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                 edge_end = routing_net.node_coords[top_id]
                 water_type, water_penalty_factor = detect_water_crossing(
                     edge_start, edge_end, lake_tree, river_tree,
-                    lakes_gdf=lakes_gdf, rivers_gdf=rivers_gdf
+                    lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
                 )
 
                 # Combine penalties multiplicatively per D-06
