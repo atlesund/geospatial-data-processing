@@ -216,7 +216,7 @@ def load_osmnx_trails(bbox, epsg=25832):
 
 
 def calculate_terrain_weight(elev1, elev2, edge_length,
-                            threshold_degrees=5.0, slope_multiplier=3):
+                            threshold_degrees=10.0, slope_multiplier=1):
     """
     Calculate terrain-aware edge weight with slope-based penalties.swss
 
@@ -277,7 +277,49 @@ def calculate_terrain_weight(elev1, elev2, edge_length,
     return (weight, slope_degrees, penalty_factor)
 
 
-def load_water_features(bbox, target_epsg, timeout=30):
+def split_bbox(bbox, grid_size=(2,2)):
+    """
+    Split bounding box into rectangular grid tiles.
+
+    Splits a large bounding box into smaller tiles to avoid OSM API
+    timeout limits when querying over large areas. Used by tiled
+    water feature queries.
+
+    Args:
+        bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
+        grid_size: Tuple (rows, cols) for grid dimensions. Default (2,2)
+                   creates 4 tiles (NW, NE, SW, SE quadrants).
+
+    Returns:
+        List of bbox tuples (west, south, east, north) for each tile,
+        ordered top-left to bottom-right (row-major order).
+
+    Example:
+        For bbox (7.0, 60.0, 9.0, 61.0) with grid_size=(2,2):
+        Returns [(7.0, 60.5, 8.0, 61.0),   # NW tile
+                (8.0, 60.5, 9.0, 61.0),   # NE tile
+                (7.0, 60.0, 8.0, 60.5),   # SW tile
+                (8.0, 60.0, 9.0, 60.5)]   # SE tile
+    """
+    west, south, east, north = bbox
+    rows, cols = grid_size
+
+    tile_width = (east - west) / cols
+    tile_height = (north - south) / rows
+
+    tiles = []
+    for row in range(rows):
+        for col in range(cols):
+            tile_west = west + col * tile_width
+            tile_east = west + (col + 1) * tile_width
+            tile_south = south + (rows - 1 - row) * tile_height
+            tile_north = south + (rows - row) * tile_height
+            tiles.append((tile_west, tile_south, tile_east, tile_north))
+
+    return tiles
+
+
+def     load_water_features(bbox, target_epsg, timeout=30):
     """
     Query and project water features for water penalty routing.
 
@@ -332,6 +374,68 @@ def load_water_features(bbox, target_epsg, timeout=30):
         print(f"Warning: Failed to query water features: {e}")
         print("Continuing without water penalty mode")
         return (None, None)
+
+
+def load_water_features_tiled(bbox, target_epsg, grid_size=(2,2), timeout=30):
+    """
+    Query and project water features in multiple tiles to avoid OSM API timeouts.
+
+    Splits large bounding box into grid tiles, queries each tile separately,
+    and merges results. Uses 2x2 grid by default (4 tiles).
+
+    Implements per D-01 through D-06:
+    - D-01: Split bbox into 2x2 grid tiles
+    - D-02: Query each tile sequentially using load_water_features
+    - D-03: Merge all tile results into single GeoDataFrame
+    - D-04: Fail entire query if any tile times out (prefer consistency)
+    - D-05: New function maintains backward compatibility
+    - D-06: Query full water features (no subset/fallback)
+
+    Args:
+        bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
+        target_epsg: Target EPSG code (e.g., 25832 for UTM 32V)
+        grid_size: Tuple (rows, cols) for grid dimensions. Default (2,2)
+        timeout: HTTP request timeout per tile in seconds
+
+    Returns:
+        Tuple (lakes_gdf, rivers_gdf) - Merged GeoDataFrames projected to target CRS
+        Returns (None, None) if any tile query fails (timeout or error)
+    """
+    tiles = split_bbox(bbox, grid_size)
+    total_tiles = len(tiles)
+
+    all_lakes = []
+    all_rivers = []
+
+    for i, tile_bbox in enumerate(tiles, start=1):
+        print(f"Querying water features for tile {i}/{total_tiles}...")
+
+        lakes_gdf, rivers_gdf = load_water_features(tile_bbox, target_epsg, timeout)
+
+        if lakes_gdf is None or rivers_gdf is None:
+            print(f"Warning: Tile {i} query failed, aborting entire query")
+            return (None, None)
+
+        # Collect results for merging
+        if len(lakes_gdf) > 0:
+            all_lakes.append(lakes_gdf)
+        if len(rivers_gdf) > 0:
+            all_rivers.append(rivers_gdf)
+
+    # Merge all tile results
+    if all_lakes:
+        merged_lakes = gpd.pd.concat(all_lakes, ignore_index=True)
+    else:
+        merged_lakes = gpd.GeoDataFrame()
+
+    if all_rivers:
+        merged_rivers = gpd.pd.concat(all_rivers, ignore_index=True)
+    else:
+        merged_rivers = gpd.GeoDataFrame()
+
+    print(f"Query complete: {len(merged_lakes)} lakes, {len(merged_rivers)} rivers found")
+
+    return (merged_lakes, merged_rivers)
 
 
 def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
@@ -470,7 +574,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
     # Query water features only if enabled per D-01/D-02
     if enable_water_queries:
-        print("Water queries enabled, querying OSM water features...")
+        print("Water queries enabled, querying OSM water features using tiled approach (2x2 grid)...")
         # Convert bbox from local CRS to EPSG:4326 for osmnx query
         # Use pyproj transformer for CRS conversion
         try:
@@ -480,11 +584,11 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
             east, north = transformer.transform(bbox_local[2], bbox_local[3])
             bbox_osm = (west, south, east, north)
 
-            # Query water features per D-01/D-02
-            lakes_gdf, rivers_gdf = load_water_features(bbox_osm, raster.epsg)
+            # Query water features using tiled approach to avoid API timeouts
+            lakes_gdf, rivers_gdf = load_water_features_tiled(bbox_osm, raster.epsg)
         except Exception as e:
             # Fallback to no-water-penalty mode if bbox conversion/query fails
-            print(f"Warning: Water feature query failed ({e}), routing without water penalties")
+            print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
             lakes_gdf, rivers_gdf = None, None
     else:
         print("Info: Water queries disabled, routing without water penalties")
