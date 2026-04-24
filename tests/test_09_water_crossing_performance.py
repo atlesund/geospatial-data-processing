@@ -265,21 +265,21 @@ class TestBackwardCompatibility:
             lakes_gdf, rivers_gdf
         )
 
-        # Edge inside lake (10× penalty)
+        # Edge inside lake (10× penalty) - use edge clearly inside lake (lake center at 0,0, radius 2.5)
         result = routing.detect_water_crossing(
-            (2.5, 2.5), (2.6, 2.6), lake_tree, river_tree,
+            (0.5, 0.5), (0.6, 0.6), lake_tree, river_tree,
             lakes_gdf=lakes_gdf_result
         )
         assert result[0] == 'lake' and result[1] == 10.0
 
-        # Edge crossing river (5× penalty)
+        # Edge crossing river (5× penalty) - river at x=0 from y=-10 to y=20, our edge crosses x=0 line
         result = routing.detect_water_crossing(
-            (0, -5), (5, 15), lake_tree, river_tree,
+            (-1, 0), (1, 0), lake_tree, river_tree,
             rivers_gdf=rivers_gdf_result
         )
         assert result[0] == 'river' and result[1] == 5.0
 
-        # Edge in open space (1× penalty)
+        # Edge in open space (1× penalty) - far from any water features
         result = routing.detect_water_crossing((20, 20), (21, 21), lake_tree, river_tree)
         assert result == (None, 1.0)
 
@@ -332,7 +332,10 @@ class TestEdgeCases:
         )
 
         # Edge exactly on river line
-        result = routing.detect_water_crossing((5, 5), (6, 6), lake_tree, river_tree)
+        result = routing.detect_water_crossing(
+            (5, 5), (6, 6), lake_tree, river_tree,
+            rivers_gdf=rivers_gdf_result
+        )
         assert result[0] == 'river'
 
 

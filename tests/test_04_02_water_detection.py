@@ -11,7 +11,7 @@ from shapely.geometry import Point, LineString, Polygon
 
 # Mock imports for headless testing environment
 try:
-    from routing_2026 import detect_water_crossing
+    from routing_2026 import detect_water_crossing, build_spatial_indexes
     IMPORT_AVAILABLE = True
 except ImportError:
     IMPORT_AVAILABLE = False
@@ -77,10 +77,14 @@ def test_lake_crossing_detection(mock_lake_polygons):
     edge_start = (25, 50)
     edge_end = (75, 50)
 
+    # Build spatial indexes (Phase 9 optimization)
+    lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(
+        mock_lake_polygons, gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+    )
+
     water_type, penalty = detect_water_crossing(
-        edge_start, edge_end,
-        lakes_gdf=mock_lake_polygons,
-        rivers_gdf=gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+        edge_start, edge_end, lake_tree, river_tree,
+        lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
     )
 
     assert water_type == 'lake', f"Expected 'lake', got '{water_type}'"
@@ -102,10 +106,14 @@ def test_fjord_classification(mock_lake_with_fjord_name):
     edge_start = (225, 250)
     edge_end = (275, 250)
 
+    # Build spatial indexes (Phase 9 optimization)
+    lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(
+        mock_lake_with_fjord_name, gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+    )
+
     water_type, penalty = detect_water_crossing(
-        edge_start, edge_end,
-        lakes_gdf=mock_lake_with_fjord_name,
-        rivers_gdf=gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+        edge_start, edge_end, lake_tree, river_tree,
+        lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
     )
 
     assert water_type == 'fjord', f"Expected 'fjord', got '{water_type}'"
@@ -127,10 +135,14 @@ def test_river_crossing_detection(mock_river_geoseries):
     edge_start = (350, 50)
     edge_end = (450, 50)
 
+    # Build spatial indexes (Phase 9 optimization)
+    lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(
+        gpd.GeoDataFrame(geometry=[], crs='EPSG:25832'), mock_river_geoseries
+    )
+
     water_type, penalty = detect_water_crossing(
-        edge_start, edge_end,
-        lakes_gdf=gpd.GeoDataFrame(geometry=[], crs='EPSG:25832'),
-        rivers_gdf=mock_river_geoseries
+        edge_start, edge_end, lake_tree, river_tree,
+        lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
     )
 
     assert water_type == 'river', f"Expected 'river', got '{water_type}'"
@@ -152,10 +164,13 @@ def test_no_crossing():
     edge_start = (1000, 1000)
     edge_end = (1100, 1000)
 
+    # Build spatial indexes (Phase 9 optimization)
+    empty_gdf = gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+    lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(empty_gdf, empty_gdf)
+
     water_type, penalty = detect_water_crossing(
-        edge_start, edge_end,
-        lakes_gdf=gpd.GeoDataFrame(geometry=[], crs='EPSG:25832'),
-        rivers_gdf=gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+        edge_start, edge_end, lake_tree, river_tree,
+        lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
     )
 
     assert water_type is None, f"Expected None, got '{water_type}'"
@@ -168,7 +183,7 @@ def test_no_water_data():
     Validate fallback when water data is None.
 
     Confirms graceful fallback: returns (None, 1.0) when both
-    lakes_gdf and rivers_gdf are None, allowing routing to continue
+    spatial indexes are None, allowing routing to continue
     in degraded mode.
     """
     if not IMPORT_AVAILABLE:
@@ -177,10 +192,11 @@ def test_no_water_data():
     edge_start = (0, 0)
     edge_end = (100, 100)
 
+    # Test with None spatial indexes (the new Phase 9 way to disable water queries)
     water_type, penalty = detect_water_crossing(
         edge_start, edge_end,
-        lakes_gdf=None,
-        rivers_gdf=None
+        lake_tree=None,
+        river_tree=None
     )
 
     assert water_type is None, f"Expected None, got '{water_type}'"
@@ -202,10 +218,14 @@ def test_edge_touching_lake_boundary(mock_lake_polygons):
     edge_start = (-10, 0)
     edge_end = (10, 0)
 
+    # Build spatial indexes (Phase 9 optimization)
+    lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(
+        mock_lake_polygons, gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+    )
+
     water_type, penalty = detect_water_crossing(
-        edge_start, edge_end,
-        lakes_gdf=mock_lake_polygons,
-        rivers_gdf=gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
+        edge_start, edge_end, lake_tree, river_tree,
+        lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
     )
 
     # Note: with shapely Point.within(), boundary points may not be detected
