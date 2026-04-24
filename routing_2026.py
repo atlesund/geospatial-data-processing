@@ -451,28 +451,28 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
     - Build STRtree index for lakes (O(m log m) once)
     - Build STRtree index for rivers (O(m log m) once)
     - Handle empty GeoDataFrames gracefully (STRtree with empty list raises ValueError)
-    - Return (None, None) for None or empty inputs
+    - Return (None, None, None, None) for None or empty inputs
     - Graceful fallback on index construction failure
+    - Note: In shapely 2.x, query() returns indices, not geometries
 
     Args:
         lakes_gdf: GeoDataFrame of lake polygons (can be None or empty)
         rivers_gdf: GeoDataFrame of river linestrings (can be None or empty)
 
     Returns:
-        Tuple (lake_tree, river_tree) - STRtree instances for lakes and rivers.
-        Returns (None, None) if GeoDataFrames are None or empty, or if
-        index construction fails.
+        Tuple (lake_tree, lake_gdf, river_tree, river_gdf) - STRtree instances and
+        their corresponding GeoDataFrames. GeoDataFrames are needed for looking up
+        geometries via indices returned by query(). Returns (None, None, None, None)
+        if both GeoDataFrames are None or empty, or if index construction fails.
     """
-    # Handle None inputs - return (None, None) for no-index mode
-    if lakes_gdf is None and rivers_gdf is None:
-        return (None, None)
-
     # Build lake spatial index if lakes_gdf is not None and not empty
     lake_tree = None
+    lakes_gdf_result = None
     if lakes_gdf is not None and len(lakes_gdf) > 0:
         try:
             lake_geometries = lakes_gdf.geometry.values
             lake_tree = STRtree(lake_geometries)
+            lakes_gdf_result = lakes_gdf
         except Exception as e:
             print(f"Warning: Failed to build lake spatial index: {e}")
             print("Falling back to no-index mode for lakes")
@@ -480,34 +480,42 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
 
     # Build river spatial index if rivers_gdf is not None and not empty
     river_tree = None
+    rivers_gdf_result = None
     if rivers_gdf is not None and len(rivers_gdf) > 0:
         try:
             river_geometries = rivers_gdf.geometry.values
             river_tree = STRtree(river_geometries)
+            rivers_gdf_result = rivers_gdf
         except Exception as e:
             print(f"Warning: Failed to build river spatial index: {e}")
             print("Falling back to no-index mode for rivers")
             river_tree = None
 
-    return (lake_tree, river_tree)
+    return (lake_tree, lakes_gdf_result, river_tree, rivers_gdf_result)
 
 
-def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
+def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
+                         lakes_gdf=None, rivers_gdf=None,
                          lake_penalty=10.0, river_penalty=5.0, fjord_penalty=50.0):
     """
-    Detect water body crossing for terrain edge using geometry checks.
+    Detect water body crossing for terrain edge using spatial index queries.
 
-    Implements per D-03/D-04/D-05:
+    Implements per 09-RESEARCH.md:
+    - Use STRtree.query() for O(log n) water feature lookup instead of O(n) iteration
     - Point-in-polygon check for lakes (edge midpoint within lake polygon)
     - Line-intersection check for rivers (edge linestring crosses river linestring)
     - Fjord classification via OSM name tag substring matching ('fjord' in name)
     - Penalty factors: lakes=10×, rivers=5×, fjords=50×
+    - Backward compatibility: works with None index inputs (no-penalty mode)
+    - Note: In shapely 2.x, STRtree.query() returns indices, not geometries
 
     Args:
         edge_start: Tuple (x, y) of edge start point in mesh CRS
         edge_end: Tuple (x, y) of edge end point in mesh CRS
-        lakes_gdf: GeoDataFrame of lake polygons (can be None if query failed)
-        rivers_gdf: GeoDataFrame of river linestrings (can be None if query failed)
+        lake_tree: STRtree spatial index for lake polygons (from build_spatial_indexes)
+        river_tree: STRtree spatial index for river linestrings (from build_spatial_indexes)
+        lakes_gdf: GeoDataFrame of lake polygons (optional, for fjord name lookup only)
+        rivers_gdf: GeoDataFrame of river linestrings (optional, reserved for future use)
         lake_penalty: Penalty factor for lake crossings (default: 10.0)
         river_penalty: Penalty factor for river crossings (default: 5.0)
         fjord_penalty: Penalty factor for fjord crossings (default: 50.0)
@@ -516,36 +524,44 @@ def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
         Tuple (water_type, penalty_factor) - (None, 1.0) if no crossing
         water_type: String ('lake', 'fjord', 'river', or None)
         penalty_factor: Float (10.0 for lakes, 50.0 for fjords, 5.0 for rivers, 1.0 for none)
+
+    Note:
+        lakes_gdf and rivers_gdf are retained for backward compatibility and fjord
+        name lookup. The primary water feature lookup uses the STRtree indexes.
+        In shapely 2.x, STRtree.query() returns indices that are used to retrieve
+        geometries from the GeoDataFrame via geometry.values[idx].
     """
-    # Handle None inputs - fallback to no water penalty
-    if lakes_gdf is None and rivers_gdf is None:
+    # Handle None index inputs - fallback to no water penalty
+    if lake_tree is None and river_tree is None:
         return (None, 1.0)
 
     x1, y1 = edge_start
     x2, y2 = edge_end
 
-    # Calculate edge midpoint
+    # Calculate edge midpoint for lake detection
     midpoint = Point(((x1 + x2) / 2, (y1 + y2) / 2))
 
-    # Check lakes first (polygons)
-    if lakes_gdf is not None:
-        for idx, lake_row in lakes_gdf.iterrows():
-            lake_geom = lake_row.geometry
-
+    # Check lakes using spatial index (O(log m) instead of O(m))
+    if lake_tree is not None and lakes_gdf is not None:
+        lake_geometries = lakes_gdf.geometry.values
+        nearby_indices = lake_tree.query(midpoint)
+        for idx in nearby_indices:
+            lake_geom = lake_geometries[idx]
             # Check for point-in-polygon
             if midpoint.within(lake_geom):
                 # Check for fjord classification
-                name = lake_row.get('name', '')
+                name = lakes_gdf.iloc[idx].get('name', '')
                 if name and 'fjord' in str(name).lower():
                     return ('fjord', fjord_penalty)
                 return ('lake', lake_penalty)
 
-    # Check rivers (linestrings)
-    if rivers_gdf is not None:
+    # Check rivers using spatial index (O(log m) instead of O(m))
+    if river_tree is not None and rivers_gdf is not None:
+        river_geometries = rivers_gdf.geometry.values
         edge_line = LineString([edge_start, edge_end])
-        for idx, river_row in rivers_gdf.iterrows():
-            river_geom = river_row.geometry
-
+        nearby_indices = river_tree.query(edge_line)
+        for idx in nearby_indices:
+            river_geom = river_geometries[idx]
             # Check for line-intersection
             if edge_line.intersects(river_geom):
                 return ('river', river_penalty)
