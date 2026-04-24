@@ -656,13 +656,19 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
             # Query water features using tiled approach to avoid API timeouts
             lakes_gdf, rivers_gdf = load_water_features_tiled(bbox_osm, raster.epsg)
+
+            # Build spatial indexes for efficient water crossing detection (Phase 9 optimization)
+            # This reduces water penalty calculation from O(n×m) to O(n log m)
+            lake_tree, river_tree = build_spatial_indexes(lakes_gdf, rivers_gdf)
         except Exception as e:
             # Fallback to no-water-penalty mode if bbox conversion/query fails
             print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
             lakes_gdf, rivers_gdf = None, None
+            lake_tree, river_tree = None, None
     else:
         print("Info: Water queries disabled, routing without water penalties")
         lakes_gdf, rivers_gdf = None, None
+        lake_tree, river_tree = None, None
 
     # Second pass: create edges with terrain and water penalties
     node_id_counter = 0
@@ -686,11 +692,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     slope = 0.0
                     terrain_penalty = 1.0
 
-                # Detect water crossing per Phase 4 D-04/D-05
+                # Detect water crossing per Phase 4 D-04/D-05 (optimized with spatial indexes)
                 edge_start = routing_net.node_coords[node_id_counter]
                 edge_end = routing_net.node_coords[left_id]
                 water_type, water_penalty_factor = detect_water_crossing(
-                    edge_start, edge_end, lakes_gdf, rivers_gdf
+                    edge_start, edge_end, lake_tree, river_tree,
+                    lakes_gdf=lakes_gdf, rivers_gdf=rivers_gdf
                 )
 
                 # Combine penalties multiplicatively per D-06
@@ -723,11 +730,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     slope = 0.0
                     terrain_penalty = 1.0
 
-                # Detect water crossing per Phase 4 D-04/D-05
+                # Detect water crossing per Phase 4 D-04/D-05 (optimized with spatial indexes)
                 edge_start = routing_net.node_coords[node_id_counter]
                 edge_end = routing_net.node_coords[top_id]
                 water_type, water_penalty_factor = detect_water_crossing(
-                    edge_start, edge_end, lakes_gdf, rivers_gdf
+                    edge_start, edge_end, lake_tree, river_tree,
+                    lakes_gdf=lakes_gdf, rivers_gdf=rivers_gdf
                 )
 
                 # Combine penalties multiplicatively per D-06
