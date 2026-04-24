@@ -665,10 +665,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
             print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
             lakes_gdf, rivers_gdf = None, None
             lake_tree, river_tree = None, None
+            lakes_gdf_idx, rivers_gdf_idx = None, None
     else:
         print("Info: Water queries disabled, routing without water penalties")
         lakes_gdf, rivers_gdf = None, None
         lake_tree, river_tree = None, None
+        lakes_gdf_idx, rivers_gdf_idx = None, None
 
     # Second pass: create edges with terrain and water penalties
     node_id_counter = 0
