@@ -139,7 +139,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
 | 6. GUI Routing Integration | 4/4 | Complete    | 2026-04-20 |
 | 7. Terrain Auto Mesh Generation | 0/0 | Not planned | - |
-| 8. Fix OSM API integration for querying water features | 4/4 | Complete | 2026-04-24 |
+| 8. Fix OSM API integration for querying water features | 4/5 | Complete    | 2026-04-24 |
 | 9. Optimize water crossing detection with spatial indexing | 0/4 | Pending | - |
 
 ### Phase 7: Terrain Auto Mesh Generation
@@ -162,7 +162,7 @@ Plans:
   2. Tiled queries split large bounding boxes into 2x2 grid tiles
   3. All tile results are merged into single GeoDataFrames for lakes and rivers
   4. Failed tiles cause entire query to fail (consistency over partial results)
-**Plans:** 4
+**Plans:** 4/5 plans complete
 
 Plans:
 - [x] 08-01: Create split_bbox utility function that divides large bounding boxes into a 2x2 grid
