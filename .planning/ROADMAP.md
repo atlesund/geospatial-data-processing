@@ -128,7 +128,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -138,3 +138,25 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 4. Water Body Penalty Routing | 4/4 | Complete | 2026-04-14 |
 | 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
 | 6. GUI Routing Integration | 4/4 | Complete    | 2026-04-20 |
+| 7. Terrain Auto Mesh Generation | 0/0 | Not planned | - |
+| 8. Fix OSM API integration for querying water features and hiking trails within area given by TIF file | 0/0 | Not planned | - |
+
+### Phase 7: Terrain Auto Mesh Generation
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
