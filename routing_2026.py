@@ -13,6 +13,7 @@ import osmnx as ox
 import math
 import geopandas as gpd
 from shapely.geometry import Point, LineString
+from shapely.strtree import STRtree
 from vector_2026 import Vector
 from raster_2026 import Raster
 
@@ -436,6 +437,59 @@ def load_water_features_tiled(bbox, target_epsg, grid_size=(2,2), timeout=30):
     print(f"Query complete: {len(merged_lakes)} lakes, {len(merged_rivers)} rivers found")
 
     return (merged_lakes, merged_rivers)
+
+
+def build_spatial_indexes(lakes_gdf, rivers_gdf):
+    """
+    Build spatial indexes for lakes and rivers using shapely.strtree.STRtree.
+
+    Constructs R-tree indexes for efficient spatial queries in water crossing
+    detection. Indexes are built once before the edge iteration loop in
+    terrain_mesh_from_raster.
+
+    Implements per 09-RESEARCH.md:
+    - Build STRtree index for lakes (O(m log m) once)
+    - Build STRtree index for rivers (O(m log m) once)
+    - Handle empty GeoDataFrames gracefully (STRtree with empty list raises ValueError)
+    - Return (None, None) for None or empty inputs
+    - Graceful fallback on index construction failure
+
+    Args:
+        lakes_gdf: GeoDataFrame of lake polygons (can be None or empty)
+        rivers_gdf: GeoDataFrame of river linestrings (can be None or empty)
+
+    Returns:
+        Tuple (lake_tree, river_tree) - STRtree instances for lakes and rivers.
+        Returns (None, None) if GeoDataFrames are None or empty, or if
+        index construction fails.
+    """
+    # Handle None inputs - return (None, None) for no-index mode
+    if lakes_gdf is None and rivers_gdf is None:
+        return (None, None)
+
+    # Build lake spatial index if lakes_gdf is not None and not empty
+    lake_tree = None
+    if lakes_gdf is not None and len(lakes_gdf) > 0:
+        try:
+            lake_geometries = lakes_gdf.geometry.values
+            lake_tree = STRtree(lake_geometries)
+        except Exception as e:
+            print(f"Warning: Failed to build lake spatial index: {e}")
+            print("Falling back to no-index mode for lakes")
+            lake_tree = None
+
+    # Build river spatial index if rivers_gdf is not None and not empty
+    river_tree = None
+    if rivers_gdf is not None and len(rivers_gdf) > 0:
+        try:
+            river_geometries = rivers_gdf.geometry.values
+            river_tree = STRtree(river_geometries)
+        except Exception as e:
+            print(f"Warning: Failed to build river spatial index: {e}")
+            print("Falling back to no-index mode for rivers")
+            river_tree = None
+
+    return (lake_tree, river_tree)
 
 
 def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
