@@ -82,6 +82,12 @@ def test_lake_crossing_detection(mock_lake_polygons):
         mock_lake_polygons, gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
     )
 
+    # Verify indexes were built correctly
+    assert lake_tree is not None, "Lake tree should be built from non-empty data"
+    assert river_tree is None, "River tree should be None for empty rivers data"
+    assert lakes_gdf_idx is not None, "Lake GeoDataFrame should be returned"
+    assert rivers_gdf_idx is None or len(rivers_gdf_idx) == 0, "River GeoDataFrame should be empty"
+
     water_type, penalty = detect_water_crossing(
         edge_start, edge_end, lake_tree, river_tree,
         lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
@@ -110,6 +116,12 @@ def test_fjord_classification(mock_lake_with_fjord_name):
     lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(
         mock_lake_with_fjord_name, gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
     )
+
+    # Verify indexes were built correctly
+    assert lake_tree is not None, "Lake tree should be built from non-empty data"
+    assert river_tree is None, "River tree should be None for empty rivers data"
+    assert lakes_gdf_idx is not None, "Lake GeoDataFrame should be returned"
+    assert rivers_gdf_idx is None or len(rivers_gdf_idx) == 0, "River GeoDataFrame should be empty"
 
     water_type, penalty = detect_water_crossing(
         edge_start, edge_end, lake_tree, river_tree,
@@ -140,6 +152,12 @@ def test_river_crossing_detection(mock_river_geoseries):
         gpd.GeoDataFrame(geometry=[], crs='EPSG:25832'), mock_river_geoseries
     )
 
+    # Verify indexes were built correctly
+    assert lake_tree is None, "Lake tree should be None for empty lakes data"
+    assert river_tree is not None, "River tree should be built from non-empty data"
+    assert lakes_gdf_idx is None or len(lakes_gdf_idx) == 0, "Lake GeoDataFrame should be empty"
+    assert rivers_gdf_idx is not None, "River GeoDataFrame should be returned"
+
     water_type, penalty = detect_water_crossing(
         edge_start, edge_end, lake_tree, river_tree,
         lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
@@ -167,6 +185,12 @@ def test_no_crossing():
     # Build spatial indexes (Phase 9 optimization)
     empty_gdf = gpd.GeoDataFrame(geometry=[], crs='EPSG:25832')
     lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(empty_gdf, empty_gdf)
+
+    # Verify indexes were built correctly for empty data
+    assert lake_tree is None, "Lake tree should be None for empty data"
+    assert river_tree is None, "River tree should be None for empty data"
+    assert lakes_gdf_idx is None or len(lakes_gdf_idx) == 0, "Lake GeoDataFrame should be empty"
+    assert rivers_gdf_idx is None or len(rivers_gdf_idx) == 0, "River GeoDataFrame should be empty"
 
     water_type, penalty = detect_water_crossing(
         edge_start, edge_end, lake_tree, river_tree,

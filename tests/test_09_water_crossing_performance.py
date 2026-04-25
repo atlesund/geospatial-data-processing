@@ -142,7 +142,11 @@ class TestFunctionalEquivalence:
         lake_tree, lakes_gdf_result, river_tree, rivers_gdf_result = routing.build_spatial_indexes(
             empty_lakes, empty_rivers
         )
-        assert lake_tree is None and river_tree is None
+        # Verify indexes were built correctly for empty data
+        assert lake_tree is None, "Lake tree should be None for empty data"
+        assert river_tree is None, "River tree should be None for empty data"
+        assert lakes_gdf_result is None or len(lakes_gdf_result) == 0, "Lake GeoDataFrame should be empty"
+        assert rivers_gdf_result is None or len(rivers_gdf_result) == 0, "River GeoDataFrame should be empty"
 
         edge = ((0, 0), (1, 1))
         naive_result = detect_water_crossing_naive(edge[0], edge[1], empty_lakes, empty_rivers)
@@ -235,11 +239,15 @@ class TestBackwardCompatibility:
         try:
             from raster_2026 import Raster
             import os
+            from pathlib import Path
 
-            test_tif = '/Users/dev/Code/School/geospatial-data-processing/data/dtm_50_1000.tif'
-            if os.path.exists(test_tif):
+            # Use relative path from test file location
+            test_dir = Path(__file__).parent.parent.parent
+            test_tif = test_dir / 'data' / 'dtm_50_1000.tif'
+
+            if test_tif.exists():
                 test_raster = Raster()
-                test_raster.read_image(test_tif)
+                test_raster.read_image(str(test_tif))
 
                 mesh_net = routing.terrain_mesh_from_raster(
                     test_raster, mesh_spacing=50, enable_water_queries=False
@@ -247,10 +255,13 @@ class TestBackwardCompatibility:
 
                 assert mesh_net is not None
                 assert len(mesh_net.node_coords) > 0
-                assert len(mesh_net.graph.edges) > 0
+
+                # Check that edges exist before accessing them
+                edge_list = list(mesh_net.graph.edges(data=True))
+                assert len(edge_list) > 0, "Graph should contain edges"
 
                 # Verify edge attributes exist
-                edge_data = list(mesh_net.graph.edges(data=True))[0]
+                edge_data = edge_list[0]
                 assert 'water_type' in edge_data[2]
                 assert 'water_penalty_factor' in edge_data[2]
         except ImportError:

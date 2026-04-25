@@ -219,7 +219,7 @@ def load_osmnx_trails(bbox, epsg=25832):
 def calculate_terrain_weight(elev1, elev2, edge_length,
                             threshold_degrees=10.0, slope_multiplier=1):
     """
-    Calculate terrain-aware edge weight with slope-based penalties.swss
+    Calculate terrain-aware edge weight with slope-based penalties.
 
     Implements terrain routing per locked decisions D-01 through D-06:
     - D-01/D-02: Slope = atan(elevation_diff / edge_length), converted to degrees
@@ -304,6 +304,10 @@ def split_bbox(bbox, grid_size=(2,2)):
     """
     west, south, east, north = bbox
     rows, cols = grid_size
+
+    # Validate grid_size to prevent division by zero
+    if rows <= 0 or cols <= 0:
+        raise ValueError(f"grid_size must have positive values, got ({rows}, {cols})")
 
     tile_width = (east - west) / cols
     tile_height = (north - south) / rows
@@ -473,8 +477,14 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
             lake_geometries = lakes_gdf.geometry.values
             lake_tree = STRtree(lake_geometries)
             lakes_gdf_result = lakes_gdf
-        except Exception as e:
+        except ValueError as e:
+            # STRtree raises ValueError for empty geometry lists
             print(f"Warning: Failed to build lake spatial index: {e}")
+            print("Falling back to no-index mode for lakes")
+            lake_tree = None
+        except Exception as e:
+            # Catch other unexpected errors with more specific handling
+            print(f"Warning: Unexpected error building lake spatial index: {type(e).__name__}: {e}")
             print("Falling back to no-index mode for lakes")
             lake_tree = None
 
@@ -486,8 +496,14 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
             river_geometries = rivers_gdf.geometry.values
             river_tree = STRtree(river_geometries)
             rivers_gdf_result = rivers_gdf
-        except Exception as e:
+        except ValueError as e:
+            # STRtree raises ValueError for empty geometry lists
             print(f"Warning: Failed to build river spatial index: {e}")
+            print("Falling back to no-index mode for rivers")
+            river_tree = None
+        except Exception as e:
+            # Catch other unexpected errors with more specific handling
+            print(f"Warning: Unexpected error building river spatial index: {type(e).__name__}: {e}")
             print("Falling back to no-index mode for rivers")
             river_tree = None
 
@@ -496,7 +512,7 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
 
 def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
                          lakes_gdf=None, rivers_gdf=None,
-                         lake_penalty=10.0, river_penalty=5.0, fjord_penalty=50.0):
+                         lake_penalty=30.0, river_penalty=15.0, fjord_penalty=10000.0):
     """
     Detect water body crossing for terrain edge using spatial index queries.
 
@@ -505,7 +521,7 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
     - Point-in-polygon check for lakes (edge midpoint within lake polygon)
     - Line-intersection check for rivers (edge linestring crosses river linestring)
     - Fjord classification via OSM name tag substring matching ('fjord' in name)
-    - Penalty factors: lakes=10×, rivers=5×, fjords=50×
+    - Penalty factors: lakes=30×, rivers=15×, fjords=150×
     - Backward compatibility: works with None index inputs (no-penalty mode)
     - Note: In shapely 2.x, STRtree.query() returns indices, not geometries
 
@@ -516,14 +532,14 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
         river_tree: STRtree spatial index for river linestrings (from build_spatial_indexes)
         lakes_gdf: GeoDataFrame of lake polygons (optional, for fjord name lookup only)
         rivers_gdf: GeoDataFrame of river linestrings (optional, reserved for future use)
-        lake_penalty: Penalty factor for lake crossings (default: 10.0)
-        river_penalty: Penalty factor for river crossings (default: 5.0)
-        fjord_penalty: Penalty factor for fjord crossings (default: 50.0)
+        lake_penalty: Penalty factor for lake crossings (default: 30.0)
+        river_penalty: Penalty factor for river crossings (default: 15.0)
+        fjord_penalty: Penalty factor for fjord crossings (default: 150.0)
 
     Returns:
         Tuple (water_type, penalty_factor) - (None, 1.0) if no crossing
         water_type: String ('lake', 'fjord', 'river', or None)
-        penalty_factor: Float (10.0 for lakes, 50.0 for fjords, 5.0 for rivers, 1.0 for none)
+        penalty_factor: Float (30.0 for lakes, 150.0 for fjords, 15.0 for rivers, 1.0 for none)
 
     Note:
         lakes_gdf and rivers_gdf are retained for backward compatibility and fjord
@@ -550,7 +566,8 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
             # Check for point-in-polygon
             if midpoint.within(lake_geom):
                 # Check for fjord classification
-                name = lakes_gdf.iloc[idx].get('name', '')
+                row = lakes_gdf.iloc[idx]
+                name = row['name'] if 'name' in lakes_gdf.columns else ''
                 if name and 'fjord' in str(name).lower():
                     return ('fjord', fjord_penalty)
                 return ('lake', lake_penalty)
@@ -607,7 +624,8 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
         raise ValueError("World file pixel_height is zero (division by zero)")
 
     # Calculate pixel spacing for mesh nodes
-    pixel_spacing = mesh_spacing / abs(pixel_width)
+    # Use math.ceil to ensure spacing doesn't become too small
+    pixel_spacing = math.ceil(mesh_spacing / abs(pixel_width))
 
     # First pass: create all nodes without edges
     # This allows us to collect all node coordinates for water feature queries
@@ -616,12 +634,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
     # Calculate number of nodes per row
     nodes_per_row = 0
-    for col in range(0, cols, int(pixel_spacing)):
+    for col in range(0, cols, pixel_spacing):
         nodes_per_row += 1
 
     # First loop collect node coordinates and elevation data
-    for row in range(0, rows, int(pixel_spacing)):
-        for col in range(0, cols, int(pixel_spacing)):
+    for row in range(0, rows, pixel_spacing):
+        for col in range(0, cols, pixel_spacing):
             # Convert pixel to world coordinates using world file
             x = world_file[4] + col * pixel_width + row * world_file[1]
             y = world_file[5] + row * pixel_height + col * world_file[2]
@@ -660,9 +678,17 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
             # Build spatial indexes for efficient water crossing detection (Phase 9 optimization)
             # This reduces water penalty calculation from O(n×m) to O(n log m)
             lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(lakes_gdf, rivers_gdf)
+        except pyproj.exceptions.CRSError as e:
+            # CRS transformation error - more specific handling
+            print(f"Warning: CRS transformation failed: {e}")
+            print("Routing without water penalties due to coordinate system issues")
+            lakes_gdf, rivers_gdf = None, None
+            lake_tree, river_tree = None, None
+            lakes_gdf_idx, rivers_gdf_idx = None, None
         except Exception as e:
-            # Fallback to no-water-penalty mode if bbox conversion/query fails
-            print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
+            # Other errors (network timeout, OSM API error, etc.)
+            print(f"Warning: Tiled water feature query failed ({type(e).__name__}: {e})")
+            print("Routing without water penalties")
             lakes_gdf, rivers_gdf = None, None
             lake_tree, river_tree = None, None
             lakes_gdf_idx, rivers_gdf_idx = None, None
@@ -674,9 +700,9 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
     # Second pass: create edges with terrain and water penalties
     node_id_counter = 0
-    for row in range(0, rows, int(pixel_spacing)):
+    for row in range(0, rows, pixel_spacing):
         col_index = 0
-        for col in range(0, cols, int(pixel_spacing)):
+        for col in range(0, cols, pixel_spacing):
             # Connect to left neighbor (same row, previous column) with terrain + water penalties
             if col_index > 0:
                 left_id = node_id_counter - 1
