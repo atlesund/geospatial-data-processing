@@ -624,7 +624,8 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
         raise ValueError("World file pixel_height is zero (division by zero)")
 
     # Calculate pixel spacing for mesh nodes
-    pixel_spacing = mesh_spacing / abs(pixel_width)
+    # Use math.ceil to ensure spacing doesn't become too small
+    pixel_spacing = math.ceil(mesh_spacing / abs(pixel_width))
 
     # First pass: create all nodes without edges
     # This allows us to collect all node coordinates for water feature queries
@@ -633,12 +634,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
     # Calculate number of nodes per row
     nodes_per_row = 0
-    for col in range(0, cols, int(pixel_spacing)):
+    for col in range(0, cols, pixel_spacing):
         nodes_per_row += 1
 
     # First loop collect node coordinates and elevation data
-    for row in range(0, rows, int(pixel_spacing)):
-        for col in range(0, cols, int(pixel_spacing)):
+    for row in range(0, rows, pixel_spacing):
+        for col in range(0, cols, pixel_spacing):
             # Convert pixel to world coordinates using world file
             x = world_file[4] + col * pixel_width + row * world_file[1]
             y = world_file[5] + row * pixel_height + col * world_file[2]
@@ -691,9 +692,9 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
     # Second pass: create edges with terrain and water penalties
     node_id_counter = 0
-    for row in range(0, rows, int(pixel_spacing)):
+    for row in range(0, rows, pixel_spacing):
         col_index = 0
-        for col in range(0, cols, int(pixel_spacing)):
+        for col in range(0, cols, pixel_spacing):
             # Connect to left neighbor (same row, previous column) with terrain + water penalties
             if col_index > 0:
                 left_id = node_id_counter - 1
