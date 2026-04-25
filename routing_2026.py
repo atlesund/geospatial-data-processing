@@ -512,7 +512,7 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
 
 def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
                          lakes_gdf=None, rivers_gdf=None,
-                         lake_penalty=10.0, river_penalty=5.0, fjord_penalty=50.0):
+                         lake_penalty=30.0, river_penalty=15.0, fjord_penalty=10000.0):
     """
     Detect water body crossing for terrain edge using spatial index queries.
 
@@ -521,7 +521,7 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
     - Point-in-polygon check for lakes (edge midpoint within lake polygon)
     - Line-intersection check for rivers (edge linestring crosses river linestring)
     - Fjord classification via OSM name tag substring matching ('fjord' in name)
-    - Penalty factors: lakes=10×, rivers=5×, fjords=50×
+    - Penalty factors: lakes=30×, rivers=15×, fjords=150×
     - Backward compatibility: works with None index inputs (no-penalty mode)
     - Note: In shapely 2.x, STRtree.query() returns indices, not geometries
 
@@ -532,14 +532,14 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
         river_tree: STRtree spatial index for river linestrings (from build_spatial_indexes)
         lakes_gdf: GeoDataFrame of lake polygons (optional, for fjord name lookup only)
         rivers_gdf: GeoDataFrame of river linestrings (optional, reserved for future use)
-        lake_penalty: Penalty factor for lake crossings (default: 10.0)
-        river_penalty: Penalty factor for river crossings (default: 5.0)
-        fjord_penalty: Penalty factor for fjord crossings (default: 50.0)
+        lake_penalty: Penalty factor for lake crossings (default: 30.0)
+        river_penalty: Penalty factor for river crossings (default: 15.0)
+        fjord_penalty: Penalty factor for fjord crossings (default: 150.0)
 
     Returns:
         Tuple (water_type, penalty_factor) - (None, 1.0) if no crossing
         water_type: String ('lake', 'fjord', 'river', or None)
-        penalty_factor: Float (10.0 for lakes, 50.0 for fjords, 5.0 for rivers, 1.0 for none)
+        penalty_factor: Float (30.0 for lakes, 150.0 for fjords, 15.0 for rivers, 1.0 for none)
 
     Note:
         lakes_gdf and rivers_gdf are retained for backward compatibility and fjord
