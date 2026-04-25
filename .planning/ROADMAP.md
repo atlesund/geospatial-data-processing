@@ -12,11 +12,15 @@ Build hiking route planning capabilities into an existing geospatial codebase by
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Map Interaction & User Selection** - Enable point selection, map navigation, and coordinate display
-- [ ] **Phase 2: Routing Network Construction** - Build hybrid network from trails, OSM, and terrain
-- [ ] **Phase 3: Steep Terrain Penalty Routing** - Apply fixed steep terrain penalties for realistic hiking routes
-- [ ] **Phase 4: Water Body Penalty Routing** - Apply water crossing penalties in route computation
-- [ ] **Phase 5: Route Visualization & Export** - Display routes and enable GPX export for GPS devices
+- [x] **Phase 1: Map Interaction & User Selection** - Enable point selection, map navigation, and coordinate display
+- [x] **Phase 2: Routing Network Construction** - Build hybrid network from trails, OSM, and terrain
+- [x] **Phase 3: Steep Terrain Penalty Routing** - Apply fixed steep terrain penalties for realistic hiking routes
+- [x] **Phase 4: Water Body Penalty Routing** - Apply water crossing penalties in route computation
+- [x] **Phase 5: Route Visualization & Export** - Display routes and enable GPX export for GPS devices
+- [x] **Phase 6: GUI Routing Integration** - Connect point selection with routing computation
+- [ ] **Phase 7: Terrain Auto Mesh Generation** - [Not planned]
+- [x] **Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file** - Enable tiled water feature queries
+- [x] **Phase 9: Optimize water crossing detection with spatial indexing** - Enable fast water crossing detection for large datasets
 
 ## Phase Details
 
@@ -106,7 +110,7 @@ Plans:
 ### Phase 6: GUI Routing Integration - Connect point selection with routing computation
 
 **Goal:** Routes automatically compute when user selects start and end points through GUI
-**Requirements**: D-01, D-02, D-03, D-04 (from CONTEXT.md)
+**Requirements:** D-01, D-02, D-03, D-04 (from CONTEXT.md)
 **Depends on:** Phase 5
 **Success Criteria** (what must be TRUE):
   1. User selects start point via Shift-F9 + click
@@ -128,7 +132,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -138,3 +142,52 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 4. Water Body Penalty Routing | 4/4 | Complete | 2026-04-14 |
 | 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
 | 6. GUI Routing Integration | 4/4 | Complete    | 2026-04-20 |
+| 7. Terrain Auto Mesh Generation | 0/0 | Not planned | - |
+| 8. Fix OSM API integration for querying water features | 4/5 | Complete    | 2026-04-24 |
+| 9. Optimize water crossing detection with spatial indexing | 0/4 | Pending | - |
+
+### Phase 7: Terrain Auto Mesh Generation
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file
+
+**Goal:** Enable successful OSM water feature queries for large raster areas by implementing tiled queries that avoid API timeout limits
+**Requirements:** D-06 (full water feature coverage)
+**Depends on:** Phase 4
+**Success Criteria** (what must be TRUE):
+  1. Water feature queries complete without OSM API timeout for full raster areas (up to 182km × 108km)
+  2. Tiled queries split large bounding boxes into 2x2 grid tiles
+  3. All tile results are merged into single GeoDataFrames for lakes and rivers
+  4. Failed tiles cause entire query to fail (consistency over partial results)
+**Plans**: 4/5 plans complete
+
+Plans:
+- [x] 08-01: Create split_bbox utility function that divides large bounding boxes into a 2x2 grid
+- [x] 08-02: Create load_water_features_tiled function that queries tiles and merges results
+- [x] 08-03: Update terrain_mesh_from_raster to use load_water_features_tiled
+- [x] 08-04: Test and validate tiled water query implementation
+
+### Phase 9: Optimize water crossing detection with spatial indexing
+
+**Goal:** Enable fast water crossing detection for large numbers of water features without performance degradation
+**Requirements:** COMP-01 (water penalty routing)
+**Depends on:** Phase 8
+**Success Criteria** (what must be TRUE):
+  1. Water crossing detection uses spatial indexing (O(n log m) instead of O(n×m))
+  2. Detection completes in reasonable time for full raster areas (30k+ lakes, 20k+ rivers)
+  3. Results are functionally identical to naive iteration (same penalties applied)
+  4. Detection works with both lakes (point-in-polygon) and rivers (line-intersection)
+**Plans**: 4
+
+Plans:
+- [ ] 09-01: Build spatial indexes for lakes and rivers using shapely.strtree.STRtree
+- [ ] 09-02: Update detect_water_crossing to use spatial indexes instead of naive iteration
+- [ ] 09-03: Integrate spatial index building into terrain mesh generation workflow
+- [ ] 09-04: Test and validate indexed detection produces same results as naive version

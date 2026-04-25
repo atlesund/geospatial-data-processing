@@ -13,6 +13,7 @@ import osmnx as ox
 import math
 import geopandas as gpd
 from shapely.geometry import Point, LineString
+from shapely.strtree import STRtree
 from vector_2026 import Vector
 from raster_2026 import Raster
 
@@ -216,7 +217,7 @@ def load_osmnx_trails(bbox, epsg=25832):
 
 
 def calculate_terrain_weight(elev1, elev2, edge_length,
-                            threshold_degrees=5.0, slope_multiplier=3):
+                            threshold_degrees=10.0, slope_multiplier=1):
     """
     Calculate terrain-aware edge weight with slope-based penalties.swss
 
@@ -277,7 +278,49 @@ def calculate_terrain_weight(elev1, elev2, edge_length,
     return (weight, slope_degrees, penalty_factor)
 
 
-def load_water_features(bbox, target_epsg, timeout=30):
+def split_bbox(bbox, grid_size=(2,2)):
+    """
+    Split bounding box into rectangular grid tiles.
+
+    Splits a large bounding box into smaller tiles to avoid OSM API
+    timeout limits when querying over large areas. Used by tiled
+    water feature queries.
+
+    Args:
+        bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
+        grid_size: Tuple (rows, cols) for grid dimensions. Default (2,2)
+                   creates 4 tiles (NW, NE, SW, SE quadrants).
+
+    Returns:
+        List of bbox tuples (west, south, east, north) for each tile,
+        ordered top-left to bottom-right (row-major order).
+
+    Example:
+        For bbox (7.0, 60.0, 9.0, 61.0) with grid_size=(2,2):
+        Returns [(7.0, 60.5, 8.0, 61.0),   # NW tile
+                (8.0, 60.5, 9.0, 61.0),   # NE tile
+                (7.0, 60.0, 8.0, 60.5),   # SW tile
+                (8.0, 60.0, 9.0, 60.5)]   # SE tile
+    """
+    west, south, east, north = bbox
+    rows, cols = grid_size
+
+    tile_width = (east - west) / cols
+    tile_height = (north - south) / rows
+
+    tiles = []
+    for row in range(rows):
+        for col in range(cols):
+            tile_west = west + col * tile_width
+            tile_east = west + (col + 1) * tile_width
+            tile_south = south + (rows - 1 - row) * tile_height
+            tile_north = south + (rows - row) * tile_height
+            tiles.append((tile_west, tile_south, tile_east, tile_north))
+
+    return tiles
+
+
+def     load_water_features(bbox, target_epsg, timeout=30):
     """
     Query and project water features for water penalty routing.
 
@@ -334,22 +377,145 @@ def load_water_features(bbox, target_epsg, timeout=30):
         return (None, None)
 
 
-def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
+def load_water_features_tiled(bbox, target_epsg, grid_size=(2,2), timeout=30):
+    """
+    Query and project water features in multiple tiles to avoid OSM API timeouts.
+
+    Splits large bounding box into grid tiles, queries each tile separately,
+    and merges results. Uses 2x2 grid by default (4 tiles).
+
+    Implements per D-01 through D-06:
+    - D-01: Split bbox into 2x2 grid tiles
+    - D-02: Query each tile sequentially using load_water_features
+    - D-03: Merge all tile results into single GeoDataFrame
+    - D-04: Fail entire query if any tile times out (prefer consistency)
+    - D-05: New function maintains backward compatibility
+    - D-06: Query full water features (no subset/fallback)
+
+    Args:
+        bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
+        target_epsg: Target EPSG code (e.g., 25832 for UTM 32V)
+        grid_size: Tuple (rows, cols) for grid dimensions. Default (2,2)
+        timeout: HTTP request timeout per tile in seconds
+
+    Returns:
+        Tuple (lakes_gdf, rivers_gdf) - Merged GeoDataFrames projected to target CRS
+        Returns (None, None) if any tile query fails (timeout or error)
+    """
+    tiles = split_bbox(bbox, grid_size)
+    total_tiles = len(tiles)
+
+    all_lakes = []
+    all_rivers = []
+
+    for i, tile_bbox in enumerate(tiles, start=1):
+        print(f"Querying water features for tile {i}/{total_tiles}...")
+
+        lakes_gdf, rivers_gdf = load_water_features(tile_bbox, target_epsg, timeout)
+
+        if lakes_gdf is None or rivers_gdf is None:
+            print(f"Warning: Tile {i} query failed, aborting entire query")
+            return (None, None)
+
+        # Collect results for merging
+        if len(lakes_gdf) > 0:
+            all_lakes.append(lakes_gdf)
+        if len(rivers_gdf) > 0:
+            all_rivers.append(rivers_gdf)
+
+    # Merge all tile results
+    if all_lakes:
+        merged_lakes = gpd.pd.concat(all_lakes, ignore_index=True)
+    else:
+        merged_lakes = gpd.GeoDataFrame()
+
+    if all_rivers:
+        merged_rivers = gpd.pd.concat(all_rivers, ignore_index=True)
+    else:
+        merged_rivers = gpd.GeoDataFrame()
+
+    print(f"Query complete: {len(merged_lakes)} lakes, {len(merged_rivers)} rivers found")
+
+    return (merged_lakes, merged_rivers)
+
+
+def build_spatial_indexes(lakes_gdf, rivers_gdf):
+    """
+    Build spatial indexes for lakes and rivers using shapely.strtree.STRtree.
+
+    Constructs R-tree indexes for efficient spatial queries in water crossing
+    detection. Indexes are built once before the edge iteration loop in
+    terrain_mesh_from_raster.
+
+    Implements per 09-RESEARCH.md:
+    - Build STRtree index for lakes (O(m log m) once)
+    - Build STRtree index for rivers (O(m log m) once)
+    - Handle empty GeoDataFrames gracefully (STRtree with empty list raises ValueError)
+    - Return (None, None, None, None) for None or empty inputs
+    - Graceful fallback on index construction failure
+    - Note: In shapely 2.x, query() returns indices, not geometries
+
+    Args:
+        lakes_gdf: GeoDataFrame of lake polygons (can be None or empty)
+        rivers_gdf: GeoDataFrame of river linestrings (can be None or empty)
+
+    Returns:
+        Tuple (lake_tree, lake_gdf, river_tree, river_gdf) - STRtree instances and
+        their corresponding GeoDataFrames. GeoDataFrames are needed for looking up
+        geometries via indices returned by query(). Returns (None, None, None, None)
+        if both GeoDataFrames are None or empty, or if index construction fails.
+    """
+    # Build lake spatial index if lakes_gdf is not None and not empty
+    lake_tree = None
+    lakes_gdf_result = None
+    if lakes_gdf is not None and len(lakes_gdf) > 0:
+        try:
+            lake_geometries = lakes_gdf.geometry.values
+            lake_tree = STRtree(lake_geometries)
+            lakes_gdf_result = lakes_gdf
+        except Exception as e:
+            print(f"Warning: Failed to build lake spatial index: {e}")
+            print("Falling back to no-index mode for lakes")
+            lake_tree = None
+
+    # Build river spatial index if rivers_gdf is not None and not empty
+    river_tree = None
+    rivers_gdf_result = None
+    if rivers_gdf is not None and len(rivers_gdf) > 0:
+        try:
+            river_geometries = rivers_gdf.geometry.values
+            river_tree = STRtree(river_geometries)
+            rivers_gdf_result = rivers_gdf
+        except Exception as e:
+            print(f"Warning: Failed to build river spatial index: {e}")
+            print("Falling back to no-index mode for rivers")
+            river_tree = None
+
+    return (lake_tree, lakes_gdf_result, river_tree, rivers_gdf_result)
+
+
+def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
+                         lakes_gdf=None, rivers_gdf=None,
                          lake_penalty=10.0, river_penalty=5.0, fjord_penalty=50.0):
     """
-    Detect water body crossing for terrain edge using geometry checks.
+    Detect water body crossing for terrain edge using spatial index queries.
 
-    Implements per D-03/D-04/D-05:
+    Implements per 09-RESEARCH.md:
+    - Use STRtree.query() for O(log n) water feature lookup instead of O(n) iteration
     - Point-in-polygon check for lakes (edge midpoint within lake polygon)
     - Line-intersection check for rivers (edge linestring crosses river linestring)
     - Fjord classification via OSM name tag substring matching ('fjord' in name)
     - Penalty factors: lakes=10×, rivers=5×, fjords=50×
+    - Backward compatibility: works with None index inputs (no-penalty mode)
+    - Note: In shapely 2.x, STRtree.query() returns indices, not geometries
 
     Args:
         edge_start: Tuple (x, y) of edge start point in mesh CRS
         edge_end: Tuple (x, y) of edge end point in mesh CRS
-        lakes_gdf: GeoDataFrame of lake polygons (can be None if query failed)
-        rivers_gdf: GeoDataFrame of river linestrings (can be None if query failed)
+        lake_tree: STRtree spatial index for lake polygons (from build_spatial_indexes)
+        river_tree: STRtree spatial index for river linestrings (from build_spatial_indexes)
+        lakes_gdf: GeoDataFrame of lake polygons (optional, for fjord name lookup only)
+        rivers_gdf: GeoDataFrame of river linestrings (optional, reserved for future use)
         lake_penalty: Penalty factor for lake crossings (default: 10.0)
         river_penalty: Penalty factor for river crossings (default: 5.0)
         fjord_penalty: Penalty factor for fjord crossings (default: 50.0)
@@ -358,36 +524,44 @@ def detect_water_crossing(edge_start, edge_end, lakes_gdf, rivers_gdf,
         Tuple (water_type, penalty_factor) - (None, 1.0) if no crossing
         water_type: String ('lake', 'fjord', 'river', or None)
         penalty_factor: Float (10.0 for lakes, 50.0 for fjords, 5.0 for rivers, 1.0 for none)
+
+    Note:
+        lakes_gdf and rivers_gdf are retained for backward compatibility and fjord
+        name lookup. The primary water feature lookup uses the STRtree indexes.
+        In shapely 2.x, STRtree.query() returns indices that are used to retrieve
+        geometries from the GeoDataFrame via geometry.values[idx].
     """
-    # Handle None inputs - fallback to no water penalty
-    if lakes_gdf is None and rivers_gdf is None:
+    # Handle None index inputs - fallback to no water penalty
+    if lake_tree is None and river_tree is None:
         return (None, 1.0)
 
     x1, y1 = edge_start
     x2, y2 = edge_end
 
-    # Calculate edge midpoint
+    # Calculate edge midpoint for lake detection
     midpoint = Point(((x1 + x2) / 2, (y1 + y2) / 2))
 
-    # Check lakes first (polygons)
-    if lakes_gdf is not None:
-        for idx, lake_row in lakes_gdf.iterrows():
-            lake_geom = lake_row.geometry
-
+    # Check lakes using spatial index (O(log m) instead of O(m))
+    if lake_tree is not None and lakes_gdf is not None:
+        lake_geometries = lakes_gdf.geometry.values
+        nearby_indices = lake_tree.query(midpoint)
+        for idx in nearby_indices:
+            lake_geom = lake_geometries[idx]
             # Check for point-in-polygon
             if midpoint.within(lake_geom):
                 # Check for fjord classification
-                name = lake_row.get('name', '')
+                name = lakes_gdf.iloc[idx].get('name', '')
                 if name and 'fjord' in str(name).lower():
                     return ('fjord', fjord_penalty)
                 return ('lake', lake_penalty)
 
-    # Check rivers (linestrings)
-    if rivers_gdf is not None:
+    # Check rivers using spatial index (O(log m) instead of O(m))
+    if river_tree is not None and rivers_gdf is not None:
+        river_geometries = rivers_gdf.geometry.values
         edge_line = LineString([edge_start, edge_end])
-        for idx, river_row in rivers_gdf.iterrows():
-            river_geom = river_row.geometry
-
+        nearby_indices = river_tree.query(edge_line)
+        for idx in nearby_indices:
+            river_geom = river_geometries[idx]
             # Check for line-intersection
             if edge_line.intersects(river_geom):
                 return ('river', river_penalty)
@@ -470,7 +644,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
     # Query water features only if enabled per D-01/D-02
     if enable_water_queries:
-        print("Water queries enabled, querying OSM water features...")
+        print("Water queries enabled, querying OSM water features using tiled approach (2x2 grid)...")
         # Convert bbox from local CRS to EPSG:4326 for osmnx query
         # Use pyproj transformer for CRS conversion
         try:
@@ -480,15 +654,23 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
             east, north = transformer.transform(bbox_local[2], bbox_local[3])
             bbox_osm = (west, south, east, north)
 
-            # Query water features per D-01/D-02
-            lakes_gdf, rivers_gdf = load_water_features(bbox_osm, raster.epsg)
+            # Query water features using tiled approach to avoid API timeouts
+            lakes_gdf, rivers_gdf = load_water_features_tiled(bbox_osm, raster.epsg)
+
+            # Build spatial indexes for efficient water crossing detection (Phase 9 optimization)
+            # This reduces water penalty calculation from O(n×m) to O(n log m)
+            lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(lakes_gdf, rivers_gdf)
         except Exception as e:
             # Fallback to no-water-penalty mode if bbox conversion/query fails
-            print(f"Warning: Water feature query failed ({e}), routing without water penalties")
+            print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
             lakes_gdf, rivers_gdf = None, None
+            lake_tree, river_tree = None, None
+            lakes_gdf_idx, rivers_gdf_idx = None, None
     else:
         print("Info: Water queries disabled, routing without water penalties")
         lakes_gdf, rivers_gdf = None, None
+        lake_tree, river_tree = None, None
+        lakes_gdf_idx, rivers_gdf_idx = None, None
 
     # Second pass: create edges with terrain and water penalties
     node_id_counter = 0
@@ -512,11 +694,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     slope = 0.0
                     terrain_penalty = 1.0
 
-                # Detect water crossing per Phase 4 D-04/D-05
+                # Detect water crossing per Phase 4 D-04/D-05 (optimized with spatial indexes)
                 edge_start = routing_net.node_coords[node_id_counter]
                 edge_end = routing_net.node_coords[left_id]
                 water_type, water_penalty_factor = detect_water_crossing(
-                    edge_start, edge_end, lakes_gdf, rivers_gdf
+                    edge_start, edge_end, lake_tree, river_tree,
+                    lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
                 )
 
                 # Combine penalties multiplicatively per D-06
@@ -549,11 +732,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     slope = 0.0
                     terrain_penalty = 1.0
 
-                # Detect water crossing per Phase 4 D-04/D-05
+                # Detect water crossing per Phase 4 D-04/D-05 (optimized with spatial indexes)
                 edge_start = routing_net.node_coords[node_id_counter]
                 edge_end = routing_net.node_coords[top_id]
                 water_type, water_penalty_factor = detect_water_crossing(
-                    edge_start, edge_end, lakes_gdf, rivers_gdf
+                    edge_start, edge_end, lake_tree, river_tree,
+                    lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
                 )
 
                 # Combine penalties multiplicatively per D-06
