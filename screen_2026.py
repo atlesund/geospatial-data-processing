@@ -369,7 +369,7 @@ class Screen():
             routing_net = terrain_mesh_from_raster(
                 self._image,
                 mesh_spacing=200,  # Fixed per D-02: performance vs detail tradeoff
-                enable_water_queries=False
+                enable_water_queries=True
             )
 
             # Validate network before assignment (D-05)

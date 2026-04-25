@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: GUI Routing Integration** - Connect point selection with routing computation
 - [ ] **Phase 7: Terrain Auto Mesh Generation** - [Not planned]
 - [x] **Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file** - Enable tiled water feature queries
-- [ ] **Phase 9: Optimize water crossing detection with spatial indexing** - Enable fast water crossing detection for large datasets
+- [x] **Phase 9: Optimize water crossing detection with spatial indexing** - Enable fast water crossing detection for large datasets
 
 ## Phase Details
 
