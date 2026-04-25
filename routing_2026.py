@@ -473,8 +473,14 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
             lake_geometries = lakes_gdf.geometry.values
             lake_tree = STRtree(lake_geometries)
             lakes_gdf_result = lakes_gdf
-        except Exception as e:
+        except ValueError as e:
+            # STRtree raises ValueError for empty geometry lists
             print(f"Warning: Failed to build lake spatial index: {e}")
+            print("Falling back to no-index mode for lakes")
+            lake_tree = None
+        except Exception as e:
+            # Catch other unexpected errors with more specific handling
+            print(f"Warning: Unexpected error building lake spatial index: {type(e).__name__}: {e}")
             print("Falling back to no-index mode for lakes")
             lake_tree = None
 
@@ -486,8 +492,14 @@ def build_spatial_indexes(lakes_gdf, rivers_gdf):
             river_geometries = rivers_gdf.geometry.values
             river_tree = STRtree(river_geometries)
             rivers_gdf_result = rivers_gdf
-        except Exception as e:
+        except ValueError as e:
+            # STRtree raises ValueError for empty geometry lists
             print(f"Warning: Failed to build river spatial index: {e}")
+            print("Falling back to no-index mode for rivers")
+            river_tree = None
+        except Exception as e:
+            # Catch other unexpected errors with more specific handling
+            print(f"Warning: Unexpected error building river spatial index: {type(e).__name__}: {e}")
             print("Falling back to no-index mode for rivers")
             river_tree = None
 
