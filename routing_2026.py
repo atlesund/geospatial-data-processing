@@ -305,6 +305,10 @@ def split_bbox(bbox, grid_size=(2,2)):
     west, south, east, north = bbox
     rows, cols = grid_size
 
+    # Validate grid_size to prevent division by zero
+    if rows <= 0 or cols <= 0:
+        raise ValueError(f"grid_size must have positive values, got ({rows}, {cols})")
+
     tile_width = (east - west) / cols
     tile_height = (north - south) / rows
 
