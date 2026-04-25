@@ -235,11 +235,15 @@ class TestBackwardCompatibility:
         try:
             from raster_2026 import Raster
             import os
+            from pathlib import Path
 
-            test_tif = '/Users/dev/Code/School/geospatial-data-processing/data/dtm_50_1000.tif'
-            if os.path.exists(test_tif):
+            # Use relative path from test file location
+            test_dir = Path(__file__).parent.parent.parent
+            test_tif = test_dir / 'data' / 'dtm_50_1000.tif'
+
+            if test_tif.exists():
                 test_raster = Raster()
-                test_raster.read_image(test_tif)
+                test_raster.read_image(str(test_tif))
 
                 mesh_net = routing.terrain_mesh_from_raster(
                     test_raster, mesh_spacing=50, enable_water_queries=False
