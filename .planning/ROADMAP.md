@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: GUI Routing Integration** - Connect point selection with routing computation
 - [ ] **Phase 7: Terrain Auto Mesh Generation** - [Not planned]
 - [x] **Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file** - Enable tiled water feature queries
-- [x] **Phase 9: Optimize water crossing detection with spatial indexing** - Enable fast water crossing detection for large datasets
+- [x] **Phase 9: Optimize water crossing detection with spatial indexing** (verified 2026-04-25) - Enable fast water crossing detection for large datasets
 
 ## Phase Details
 
@@ -187,7 +187,7 @@ Plans:
 **Plans**: 4
 
 Plans:
-- [ ] 09-01: Build spatial indexes for lakes and rivers using shapely.strtree.STRtree
-- [ ] 09-02: Update detect_water_crossing to use spatial indexes instead of naive iteration
-- [ ] 09-03: Integrate spatial index building into terrain mesh generation workflow
-- [ ] 09-04: Test and validate indexed detection produces same results as naive version
+- [x] 09-01: Build spatial indexes for lakes and rivers using shapely.strtree.STRtree
+- [x] 09-02: Update detect_water_crossing to use spatial indexes instead of naive iteration
+- [x] 09-03: Integrate spatial index building into terrain mesh generation workflow
+- [x] 09-04: Test and validate indexed detection produces same results as naive version
