@@ -562,7 +562,8 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
             # Check for point-in-polygon
             if midpoint.within(lake_geom):
                 # Check for fjord classification
-                name = lakes_gdf.iloc[idx].get('name', '')
+                row = lakes_gdf.iloc[idx]
+                name = row['name'] if 'name' in lakes_gdf.columns else ''
                 if name and 'fjord' in str(name).lower():
                     return ('fjord', fjord_penalty)
                 return ('lake', lake_penalty)
