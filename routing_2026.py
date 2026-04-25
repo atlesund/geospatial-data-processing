@@ -678,9 +678,17 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
             # Build spatial indexes for efficient water crossing detection (Phase 9 optimization)
             # This reduces water penalty calculation from O(n×m) to O(n log m)
             lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(lakes_gdf, rivers_gdf)
+        except pyproj.exceptions.CRSError as e:
+            # CRS transformation error - more specific handling
+            print(f"Warning: CRS transformation failed: {e}")
+            print("Routing without water penalties due to coordinate system issues")
+            lakes_gdf, rivers_gdf = None, None
+            lake_tree, river_tree = None, None
+            lakes_gdf_idx, rivers_gdf_idx = None, None
         except Exception as e:
-            # Fallback to no-water-penalty mode if bbox conversion/query fails
-            print(f"Warning: Tiled water feature query failed ({e}), routing without water penalties")
+            # Other errors (network timeout, OSM API error, etc.)
+            print(f"Warning: Tiled water feature query failed ({type(e).__name__}: {e})")
+            print("Routing without water penalties")
             lakes_gdf, rivers_gdf = None, None
             lake_tree, river_tree = None, None
             lakes_gdf_idx, rivers_gdf_idx = None, None
