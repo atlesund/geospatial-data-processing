@@ -142,7 +142,11 @@ class TestFunctionalEquivalence:
         lake_tree, lakes_gdf_result, river_tree, rivers_gdf_result = routing.build_spatial_indexes(
             empty_lakes, empty_rivers
         )
-        assert lake_tree is None and river_tree is None
+        # Verify indexes were built correctly for empty data
+        assert lake_tree is None, "Lake tree should be None for empty data"
+        assert river_tree is None, "River tree should be None for empty data"
+        assert lakes_gdf_result is None or len(lakes_gdf_result) == 0, "Lake GeoDataFrame should be empty"
+        assert rivers_gdf_result is None or len(rivers_gdf_result) == 0, "River GeoDataFrame should be empty"
 
         edge = ((0, 0), (1, 1))
         naive_result = detect_water_crossing_naive(edge[0], edge[1], empty_lakes, empty_rivers)
