@@ -5,7 +5,7 @@ milestone_name: milestone
 status: milestone_complete
 stopped_at: ROADMAP and STATE updated - Phase 4 marked complete
 last_updated: "2026-04-25T14:25:00Z"
-last_activity: 2026-04-25
+last_activity: 2026-04-25 - Completed quick task 260425-g9x: Go through all .planning files etc. and clean up
 progress:
   total_phases: 8
   completed_phases: 8
@@ -121,6 +121,7 @@ None yet.
 | 260422-jg5 | Create an isolated test which tests phase 04, give it some bbox and query the water metadata for that box. | 2026-04-22 | 3ff928a | [260422-jg5-create-an-isolated-test-which-tests-phas](./quick/260422-jg5-create-an-isolated-test-which-tests-phas/) |
 | 260416-ipm | Fix test_v1_complete.py: fix syntax errors and add usage docstring | 2026-04-16 | a1fa1a9 | [260416-ipm-fix-test-v1-complete-py-fix-syntax-error](./quick/260416-ipm-fix-test-v1-complete-py-fix-syntax-error/) |
 | 260412-pd7 | Fix known bugs (intersection logic, validation typo) and update requirements.txt | 2026-04-12 | 2f253fc | [260412-pd7-fix-the-known-bugs](./quick/260412-pd7-fix-the-known-bugs-under-concerns-and-ma/) |
+| 260425-g9x | Go through all .planning files etc. and clean up | 2026-04-25 | 4466e65 | [260425-g9x-go-through-all-planning-files-etc-and-cl](./quick/260425-g9x-go-through-all-planning-files-etc-and-cl/) |
 
 ## Session Continuity
 
