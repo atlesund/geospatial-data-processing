@@ -247,10 +247,13 @@ class TestBackwardCompatibility:
 
                 assert mesh_net is not None
                 assert len(mesh_net.node_coords) > 0
-                assert len(mesh_net.graph.edges) > 0
+
+                # Check that edges exist before accessing them
+                edge_list = list(mesh_net.graph.edges(data=True))
+                assert len(edge_list) > 0, "Graph should contain edges"
 
                 # Verify edge attributes exist
-                edge_data = list(mesh_net.graph.edges(data=True))[0]
+                edge_data = edge_list[0]
                 assert 'water_type' in edge_data[2]
                 assert 'water_penalty_factor' in edge_data[2]
         except ImportError:
