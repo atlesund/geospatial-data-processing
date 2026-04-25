@@ -19,23 +19,27 @@ Generate safe, optimal hiking routes between any two points in Norway using terr
 - ✓ GeoJSON, Shapefile, CSV file I/O — existing
 - ✓ OpenStreetMap visualization via folium — existing
 - ✓ Digitizing tools for point selection (F9/F12) — existing
+- ✓ User can select start and end points on interactive map — Phase 1
+- ✓ System can fetch OpenStreetMap data (roads, paths, trails) — Phase 2
+- ✓ System can construct hybrid routing network (existing trails + OSM ways + terrain analysis) — Phase 2
+- ✓ System can compute optimal paths using weighted cost surface — Phase 2-4
+- ✓ System applies penalties for steep terrain slopes — Phase 3
+- ✓ System applies penalties for water body crossings (lakes, rivers, fjords) — Phase 4, 8-9
+- ✓ Default optimization: shortest distance with terrain-aware constraints — Phase 2-4
+- ✓ Route visualization on interactive map — Phase 5
+- ✓ GPX file export for navigation devices — Phase 5
+- ✓ Application works fully offline after initial data download — Phase 2-9
+- ✓ Python Tkinter GUI interface — Screen class implementation
 
 ### Active
 
-- [ ] User can select起点和终点 on interactive map
 - [ ] User can configure route optimization parameters (max elevation gain, scenic preferences)
 - [ ] System can fetch/download terrain data from Kartverket N50/DTM50
-- [ ] System can fetch OpenStreetMap data (roads, paths, trails)
 - [ ] System can fetch GEONORGE data (Norwegian geospatial infrastructure)
-- [ ] System can construct hybrid routing network (existing trails + OSM ways + terrain analysis)
-- [ ] System can compute optimal paths using weighted cost surface
-- [ ] System applies crossable penalties for water bodies (lakes, rivers)
 - [ ] System detects scenic terrain (water proximity, named features, terrain type)
-- [ ] Default optimization: shortest distance with user-configurable constraints
 - [ ] Route visualization with elevation profile
-- [ ] GPX file export for navigation devices
-- [ ] Application works fully offline after initial data download
-- [ ] Python Tkinter GUI interface
+
+Note: Above items represent potential v2 enhancements. All v1 milestone requirements are validated.
 
 ### Out of Scope
 
@@ -56,9 +60,10 @@ Generate safe, optimal hiking routes between any two points in Norway using terr
 - Already uses OpenStreetMap via folium for web visualization
 
 **Project State:**
-- Prototype stage — core modules work but need production polish
-- Existing code provides strong foundation for data loading, transformation, visualization
-- Tests have been removed (pytest fixtures deleted) — need to rebuild test coverage
+- v1.0 milestone complete — 8 phases implemented (Phases 1-6, 8-9)
+- Production-ready routing implementation with terrain and water penalties
+- Full test coverage across all implemented features
+- Screen class provides full GUI routing integration
 
 **Technical Environment:**
 - Python 3.x with tkinter for desktop GUI
@@ -84,12 +89,13 @@ Generate safe, optimal hiking routes between any two points in Norway using terr
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Tkinter GUI over web app | User explicitly requested Python Tkinter interface | — Pending |
-| Kartverket DTM50 over generic DEM | User specified Norway-specific terrain data source | — Pending |
-| Hybrid routing network (trails + OSM + terrain) | Best coverage for hiking in varying terrain | — Pending |
-| Offline-first after download | User requested fully offline operation | — Pending |
-| User-configurable optimization | User wants to balance distance, elevation, scenic preferences | — Pending |
-| Crossable penalty for water bodies | Avoid blocking routes unnecessarily when bridges/fords exist | — Pending |
+| Tkinter GUI over web app | User explicitly requested Python Tkinter interface | Implemented: Screen class integration complete |
+| Kartverket DTM50 over generic DEM | User specified Norway-specific terrain data source | Implemented: Raster class loads GeoTIFF terrain data |
+| Hybrid routing network (trails + OSM + terrain) | Best coverage for hiking in varying terrain | Implemented: RoutingNetwork combines OSM and terrain mesh |
+| Offline-first after download | User requested fully offline operation | Implemented: All data cached, OSM queries optional |
+| User-configurable optimization | User wants to balance distance, elevation, scenic preferences | Partial: Terrain/water penalties configurable, UI parameters pending |
+| Crossable penalty for water bodies | Avoid blocking routes unnecessarily when bridges/fords exist | Implemented: Multiplicative penalties (lakes 10x, rivers 5x, fjords 50x) |
+| Spatial indexing for performance | OSM water queries cause timeouts on large areas | Implemented: shapely.strtree for fast water crossing detection |
 
 ## Evolution
 
@@ -109,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-12 after initialization*
+*Last updated: 2026-04-25 after v1.0 milestone completion*
