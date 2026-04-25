@@ -219,7 +219,7 @@ def load_osmnx_trails(bbox, epsg=25832):
 def calculate_terrain_weight(elev1, elev2, edge_length,
                             threshold_degrees=10.0, slope_multiplier=1):
     """
-    Calculate terrain-aware edge weight with slope-based penalties.swss
+    Calculate terrain-aware edge weight with slope-based penalties.
 
     Implements terrain routing per locked decisions D-01 through D-06:
     - D-01/D-02: Slope = atan(elevation_diff / edge_length), converted to degrees
