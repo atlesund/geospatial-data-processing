@@ -18,7 +18,6 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Water Body Penalty Routing** - Apply water crossing penalties in route computation
 - [x] **Phase 5: Route Visualization & Export** - Display routes and enable GPX export for GPS devices
 - [x] **Phase 6: GUI Routing Integration** - Connect point selection with routing computation
-- [ ] **Phase 7: Terrain Auto Mesh Generation** - [Not planned]
 - [x] **Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file** - Enable tiled water feature queries
 - [x] **Phase 9: Optimize water crossing detection with spatial indexing** (verified 2026-04-25) - Enable fast water crossing detection for large datasets
 
@@ -132,7 +131,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 8 → 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -142,19 +141,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Water Body Penalty Routing | 4/4 | Complete | 2026-04-14 |
 | 5. Route Visualization & Export | 4/4 | Complete | 2026-04-16 |
 | 6. GUI Routing Integration | 4/4 | Complete    | 2026-04-20 |
-| 7. Terrain Auto Mesh Generation | 0/0 | Not planned | - |
-| 8. Fix OSM API integration for querying water features | 4/5 | Complete    | 2026-04-24 |
-| 9. Optimize water crossing detection with spatial indexing | 0/4 | Pending | - |
-
-### Phase 7: Terrain Auto Mesh Generation
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 6
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 7 to break down)
+| 8. Fix OSM API integration for querying water features | 4/4 | Complete    | 2026-04-24 |
+| 9. Optimize water crossing detection with spatial indexing | 4/4 | Complete    | 2026-04-25 |
 
 ### Phase 8: Fix OSM API integration for querying water features and hiking trails within area given by TIF file
 
@@ -166,7 +154,7 @@ Plans:
   2. Tiled queries split large bounding boxes into 2x2 grid tiles
   3. All tile results are merged into single GeoDataFrames for lakes and rivers
   4. Failed tiles cause entire query to fail (consistency over partial results)
-**Plans**: 4/5 plans complete
+**Plans**: 4/4 plans complete
 
 Plans:
 - [x] 08-01: Create split_bbox utility function that divides large bounding boxes into a 2x2 grid
