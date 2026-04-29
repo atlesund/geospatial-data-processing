@@ -1,4 +1,3 @@
-import json
 import tkinter
 import pyproj
 import numpy as np

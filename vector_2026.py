@@ -2,7 +2,6 @@ import utilities_2026 as utilities
 import json
 import pyproj
 from numpy import random
-from numpy import linalg
 import numbers
 import math
 
