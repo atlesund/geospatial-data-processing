@@ -10,6 +10,7 @@ import networkx as nx
 import scipy.spatial
 import numpy as np
 import osmnx as ox
+import pyproj
 import math
 import geopandas as gpd
 from shapely.geometry import Point, LineString

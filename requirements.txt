@@ -2,6 +2,9 @@ numpy
 pyproj
 pyshp
 folium
+geopandas
+shapely
+rasterio
 pytest>=8.0.0
 networkx>=3.6.1
 Pillow>=10.0.0
