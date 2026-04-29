@@ -355,6 +355,7 @@ class Screen():
             epsg = utilities.epsg()
             if epsg is not None:
                 self._epsg = epsg
+                self._image.epsg = epsg
                 print(f"EPSG set from user input: {self._epsg}")
 
         # === Phase 7: Auto-generate routing network from terrain ===
@@ -675,10 +676,10 @@ class Screen():
 
     def export_gpx(self, event=None):
         """
-        Export current route as GPX 1.1 file with WGS84 coordinates.
+        Export current route as GPX file with WGS84 coordinates.
 
         Triggered by F5 key. Shows file save dialog. Falls back to
-        _read_image if no route computed yet, preserving existing functionality.
+        _read_image if no route computed yet.
 
         :param self: Instance of the class
         :param event: tkinter event (optional, for keyboard binding)

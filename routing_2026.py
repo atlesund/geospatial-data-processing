@@ -12,6 +12,7 @@ import numpy as np
 import osmnx as ox
 import math
 import geopandas as gpd
+import pyproj
 from shapely.geometry import Point, LineString
 from shapely.strtree import STRtree
 from vector_2026 import Vector
@@ -666,8 +667,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
         # Convert bbox from local CRS to EPSG:4326 for osmnx query
         # Use pyproj transformer for CRS conversion
         try:
-            from pyproj import Transformer
-            transformer = Transformer.from_crs(f"EPSG:{raster.epsg}", "EPSG:4326", always_xy=True)
+            transformer = pyproj.Transformer.from_crs(f"EPSG:{raster.epsg}", "EPSG:4326", always_xy=True)
             west, south = transformer.transform(bbox_local[0], bbox_local[1])
             east, north = transformer.transform(bbox_local[2], bbox_local[3])
             bbox_osm = (west, south, east, north)

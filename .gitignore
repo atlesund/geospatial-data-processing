@@ -1,9 +1,6 @@
-media/
 __pycache__/
 .vscode/
 *.zip
-test.py
-osm.html
 .DS_Store
 .venv
 data/

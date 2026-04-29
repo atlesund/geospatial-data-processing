@@ -5,7 +5,6 @@ import tkinter
 import utilities_2026 as utilities
 import numpy as np
 
-
 class Raster():
     def __init__(self):
         self._filename = None
@@ -146,15 +145,15 @@ class Raster():
                 print(f"DEBUG: world_file (affine) = {affine}")
                 self._world_file = affine
 
-                # Extract EPSG code from CRS
+                # Extract EPSG code from CRS. Use rasterio's CRS helpers rather
+                # than parsing str(src.crs), because GDAL/rasterio versions can
+                # represent the same CRS differently across machines.
                 if src.crs:
-                    crs_str = str(src.crs)
-                    if 'EPSG:' in crs_str:
-                        self._epsg = int(crs_str.split(':')[1])
-                    else:
-                        # Handle non-EPSG CRS (e.g., WGS84)
-                        # For now, assume proj4 string needs manual conversion
-                        self._epsg = None
+                    self._epsg = src.crs.to_epsg()
+                    if self._epsg is None:
+                        authority = src.crs.to_authority()
+                        if authority and authority[0].upper() == 'EPSG':
+                            self._epsg = int(authority[1])
                 else:
                     self._epsg = None
 
