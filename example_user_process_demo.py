@@ -1,6 +1,8 @@
 """
 Example: Complete User Process Demonstration
 
+NB! If epsg is missing use 25833 for Norwegian .tif files
+
 Demonstrates the complete end-to-end workflow from user-process.md:
 1. Load GeoTIFF terrain data (auto-generates routing network)
 2. User selects start/end points via Shift+F9
@@ -16,11 +18,11 @@ Prerequisites:
 
 Workflow:
     1. Press F5 to load your GeoTIFF terrain file
-       → Terrain loads and routing mesh auto-generates (Phase 7)
+       → Terrain loads and routing mesh auto-generates
     2. Press Shift+F9 to start route selection mode
     3. Click to select start point (red marker)
     4. Click to select end point (blue marker)
-       → Route auto-computes and displays (Phase 6)
+       → Route auto-computes and displays
     5. Press Shift+F10 to stop route selection mode
     6. Optional: Export route as GPX for GPS navigation
 

@@ -166,22 +166,16 @@ def calculate_terrain_weight(elev1, elev2, edge_length,
     """
     Calculate terrain-aware edge weight with slope-based penalties.
 
-    Implements terrain routing per locked decisions D-01 through D-06:
-    - D-01/D-02: Slope = atan(elevation_diff / edge_length), converted to degrees
-    - D-03/D-04: 20° threshold - penalty only applies when slope > 20°
-    - D-05: Linear scaling: penalty_factor = 1.0 + k*(slope - threshold)
-    - D-06: Multiplicative weight: final_weight = edge_length × penalty_factor
-
     Args:
         elev1: Elevation at first node (meters)
         elev2: Elevation at second node (meters)
         edge_length: Horizontal distance between nodes (meters)
-        threshold_degrees: Slope threshold for penalty application (default: 20.0)
+        threshold_degrees: Slope threshold for penalty application (default: 10.0)
         slope_multiplier: Linear scaling factor (default: 0.2)
 
     Returns:
         Tuple (weight, slope_degrees, penalty_factor):
-        - weight: Final edge weight (edge_length × penalty_factor)
+        - weight: Final edge weight (edge_length x penalty_factor)
         - slope_degrees: Calculated slope angle in degrees
         - penalty_factor: Applied penalty (1.0 to 100.0)
 
@@ -269,7 +263,7 @@ def split_bbox(bbox, grid_size=(2,2)):
     return tiles
 
 
-def     load_water_features(bbox, target_epsg, timeout=30):
+def load_water_features(bbox, target_epsg, timeout=30):
     """
     Query and project water features for water penalty routing.
 
@@ -466,7 +460,7 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
     - Point-in-polygon check for lakes (edge midpoint within lake polygon)
     - Line-intersection check for rivers (edge linestring crosses river linestring)
     - Fjord classification via OSM name tag substring matching ('fjord' in name)
-    - Penalty factors: lakes=30×, rivers=15×, fjords=150×
+    - Penalty factors: lakes=30x, rivers=15x, fjords=150x
     - Backward compatibility: works with None index inputs (no-penalty mode)
     - Note: In shapely 2.x, STRtree.query() returns indices, not geometries
 
@@ -535,10 +529,6 @@ def detect_water_crossing(edge_start, edge_end, lake_tree, river_tree,
 def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_queries=False):
     """
     Generate a regular mesh node grid from terrain raster.
-
-    For Phase 2: Creates placeholder mesh structure.
-    Phase 3: Added terrain-based edge weights.
-    Phase 4: Added water body penalties combined multiplicatively with terrain.
 
     Args:
         raster: Raster instance with DTM data
@@ -619,8 +609,8 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
             # Query water features using tiled approach to avoid API timeouts
             lakes_gdf, rivers_gdf = load_water_features_tiled(bbox_osm, raster.epsg)
 
-            # Build spatial indexes for efficient water crossing detection (Phase 9 optimization)
-            # This reduces water penalty calculation from O(n×m) to O(n log m)
+            # Build spatial indexes for efficient water crossing detection
+            # This reduces water penalty calculation from O(nxm) to O(n log m)
             lake_tree, lakes_gdf_idx, river_tree, rivers_gdf_idx = build_spatial_indexes(lakes_gdf, rivers_gdf)
         except pyproj.exceptions.CRSError as e:
             # CRS transformation error - more specific handling
@@ -664,7 +654,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     slope = 0.0
                     terrain_penalty = 1.0
 
-                # Detect water crossing per Phase 4 D-04/D-05 (optimized with spatial indexes)
+                # Detect water crossing
                 edge_start = routing_net.node_coords[node_id_counter]
                 edge_end = routing_net.node_coords[left_id]
                 water_type, water_penalty_factor = detect_water_crossing(
@@ -702,7 +692,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     slope = 0.0
                     terrain_penalty = 1.0
 
-                # Detect water crossing per Phase 4 D-04/D-05 (optimized with spatial indexes)
+                # Detect water crossing
                 edge_start = routing_net.node_coords[node_id_counter]
                 edge_end = routing_net.node_coords[top_id]
                 water_type, water_penalty_factor = detect_water_crossing(

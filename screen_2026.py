@@ -1,4 +1,7 @@
+from datetime import datetime
+from tkinter import filedialog
 import tkinter
+
 import pyproj
 import numpy as np
 import networkx as nx
@@ -36,7 +39,7 @@ class Screen():
         self._current_route = None  # Store route as list of screen coordinates
         self._route_network_coords = []  # Store route as list of network EPSG coordinates for GPX
 
-        # Root window    
+        # Root window
         self._root = tkinter.Tk()
 
         # Canvas
@@ -48,7 +51,7 @@ class Screen():
             borderwidth=0,
             highlightthickness=0
         )
-        
+
         # Pack
         self._canvas.pack()
 
@@ -100,17 +103,17 @@ class Screen():
         self._root.bind('<minus>', self._zoom_out)  # Zoom out with - key
 
         self._root.bind('<F12>', self._digit_points_to_geojson) # points to geojson
-        
-    
+
+
     # "Protected methods"
     # - Only to be used within the library, not by external files
 
     def _start_digit_points(self, event):
         """
         Digit a point by left-button
-        
+
         :param self: Instance of the class
-        :param event: 
+        :param event:
         """
         print('Start digitising mode...')
 
@@ -120,7 +123,7 @@ class Screen():
         #'<Button-1>,' 'tcross', defined in tkinter package
 
     def _get_point(self, event):
-        
+
         self.draw_point([event.x, event.y])
 
         self._digits._coordinates.append([event.x, event.y])
@@ -129,7 +132,7 @@ class Screen():
 
 
 
-        
+
     def _stop_digit_points(self, event):
         print('Stop digitising mode..')
 
@@ -170,7 +173,7 @@ class Screen():
             self._route_stage = None
             print(f'End point selected: [{x}, {y}]')
 
-            # === NEW IN PHASE 6: Auto-trigger routing ===
+
             self._compute_and_display_route()
 
     def _start_route_selection(self, event):
@@ -326,17 +329,7 @@ class Screen():
 
     def _read_image(self, event):
         """
-        Read image with F5 and auto-generate routing network (Phase 7).
-
-        User loads GeoTIFF terrain file, system automatically generates
-        routing mesh for immediate route computation via GUI.
-
-        Per D-01: Auto-trigger after terrain load.
-        Per D-02: Fixed 200m mesh spacing for v1.
-        Per D-03: Cursor progress indication during generation.
-        Per D-04: Warning dialogs for all error types.
-        Per D-05: Validate network non-emptily before assignment.
-        Per D-06: Network replacement on re-load (hot reload).
+        Read image with F5 and auto-generate routing network.
 
         :param self: Instance of the class
         :param event: Keyboard event (F5 key press)
@@ -357,7 +350,6 @@ class Screen():
                 self._image.epsg = epsg
                 print(f"EPSG set from user input: {self._epsg}")
 
-        # === Phase 7: Auto-generate routing network from terrain ===
         try:
             # Progress indication: cursor changes to watch
             self._root.config(cursor='watch')
@@ -365,7 +357,6 @@ class Screen():
             print("Generating routing network from terrain...")
 
             # Generate mesh with fixed 200m spacing (v1)
-            # Disable water queries for v1 to avoid blocking OSM API calls in GUI
             routing_net = terrain_mesh_from_raster(
                 self._image,
                 mesh_spacing=200,  # Fixed per D-02: performance vs detail tradeoff
@@ -380,7 +371,7 @@ class Screen():
                 )
                 print("Warning: Empty network, not assigned to screen.")
             else:
-                # Assign network to screen (Phase 6 integration)
+                # Assign network to screen
                 self.set_route_network(routing_net)
                 print(f"Mesh network created and assigned: "
                       f"{len(routing_net.graph.nodes)} nodes, "
@@ -411,10 +402,10 @@ class Screen():
     def _fit_canvas_to_image(self, event):
         if self._image is None:
             return
-        
+
         if self._image.shape is None:
             return
-        
+
         rows, columns = self._image.shape
 
         self._canvas.configure(
@@ -553,7 +544,7 @@ class Screen():
 
         Error handling: All user-facing errors trigger utilities.warning().
         """
-        # === 1. Validate prerequisites ===
+        # Validate prerequisites
         if self._start_point is None or self._end_point is None:
             utilities.warning('Both start and end points must be selected')
             return
@@ -570,7 +561,7 @@ class Screen():
             utilities.warning('Routing network is empty. Load trail or terrain data first.')
             return
 
-        # === 2. Transform screen to world coordinates ===
+        # Transform screen to world coordinates
         try:
             start_world = utilities.screen_to_world(
                 self._start_point, self._world_file
@@ -583,7 +574,7 @@ class Screen():
             print(f'Debug: screen_to_world error: {e}')
             return
 
-        # === 3. Transform world to network EPSG coordinates ===
+        #  Transform world to network EPSG coordinates
         try:
             if self._epsg is None or self._route_network.epsg is None:
                 utilities.warning('Coordinate systems undefined')
@@ -605,12 +596,11 @@ class Screen():
             print(f'Debug: projection error: {e}')
             return
 
-        # === 4. Show progress indication ===
         self._root.config(cursor='watch')
         self._root.update_idletasks()
 
         try:
-            # === 5. Snap to nearest graph nodes ===
+            # 5. Snap to nearest graph nodes
             start_node, start_dist = self._route_network.find_nearest_node(
                 start_network[0], start_network[1]
             )
@@ -622,7 +612,7 @@ class Screen():
                 utilities.warning('Failed to find nearest nodes in routing network')
                 return
 
-            # === 6. Compute shortest path ===
+            # Compute shortest path
             try:
                 path_node_ids = self._route_network.shortest_path(start_node, end_node)
             except nx.exception.NetworkXNoPath:
@@ -635,7 +625,7 @@ class Screen():
                 utilities.warning(f'Path computation failed: {e}')
                 return
 
-            # === 7. Map node IDs to network coordinates ===
+            # Map node IDs to network coordinates
             route_network_coords = [
                 self._route_network.node_coords[node_id]
                 for node_id in path_node_ids
@@ -645,10 +635,10 @@ class Screen():
                 utilities.warning('Route computation produced empty path')
                 return
 
-            # === 8. Store for GPX export ===
+            #  Store for GPX export
             self._route_network_coords = route_network_coords
 
-            # === 9. Transform network coordinates to screen coordinates ===
+            # Transform network coordinates to screen coordinates
             try:
                 route_screen_coords = []
                 for coord in route_network_coords:
@@ -662,7 +652,7 @@ class Screen():
                 print(f'Debug: world_to_screen error: {e}')
                 return
 
-            # === 10. Display route ===
+            # Display route
             self.set_route(route_network_coords)
 
             # Print routing stats for debugging
@@ -670,7 +660,7 @@ class Screen():
                   f'{start_dist:.1f}m from start node, {end_dist:.1f}m from end node')
 
         finally:
-            # === 11. Restore cursor ===
+            # Restore cursor
             self._root.config(cursor='arrow')
 
     def export_gpx(self, event=None):
@@ -683,7 +673,7 @@ class Screen():
         :param self: Instance of the class
         :param event: tkinter event (optional, for keyboard binding)
         """
-        # Check if route has been computed
+
         if not self._route_network_coords:
             # No route available, fall back to image load (existing F5 behavior)
             print('No route computed. Loading image instead.')
@@ -712,7 +702,7 @@ class Screen():
             lon, lat = transformer.transform(x, y)
             track_points.append(f'      <trkpt lat="{lat:.6f}" lon="{lon:.6f}"></trkpt>')
 
-        # Generate GPX 1.1 XML structure (track-only format per D-07)
+        # Generate GPX 1.1 XML structure
         gpx_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Norwegian Hiking Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
   <trk>
@@ -723,10 +713,6 @@ class Screen():
   </trk>
 </gpx>
 '''
-
-        # Show file save dialog (D-09)
-        from tkinter import filedialog
-        from datetime import datetime
 
         today = datetime.now().strftime("%Y-%m-%d")
         filename = filedialog.asksaveasfilename(
@@ -756,11 +742,11 @@ class Screen():
         if len(self._digits.coordinates) == 0:
             utilities.warning('Digitised points not found')
             return
-        
+
         if self._world_file is None:
             utilities.warning('World file data not found')
             return
-        
+
         # 1. Screen to world coordinates
 
         terrain_coordinates = []
@@ -778,7 +764,7 @@ class Screen():
 
         if filename is None:
             return
-        
+
         # 2.2 Write file
 
         utilities.write_geojson_points(
@@ -799,11 +785,11 @@ class Screen():
     def keyboard_bind(self, event, function):
         """
         Docstring for keyboard_bind
-        
+
         :param event: trigger (key, mouse, or any other event)
         :param function: action
         """
-        
+
         self._root.bind(event, function)
 
     def keyboard_unbind(self, event):
@@ -811,7 +797,7 @@ class Screen():
 
     def mouse_bind(self, event, function):
         self._canvas.bind(event, function)
-    
+
     def mouse_unbind(self, event):
         self._canvas.unbind(event)
 
@@ -822,17 +808,17 @@ class Screen():
     def delete(self, tag):
         """
         Delete graphic elements on canvas
-        
+
         :param self: Description
         :param tag: Description
         """
         self._canvas.delete(tag)
-    
+
     def draw_point(self, point, size=3, colour='white', tag = 'point'):
         """
         Draw point (in screen coordinates) on the canvas
         Doesnt have a native method to draw points. We will draw a small rectangle and fill it with a colour
-        
+
         :param self: Description
         :param point: Description
         :param size: Description
@@ -846,19 +832,19 @@ class Screen():
         x_max = x + size
         y_min = y - size
         y_max = y + size
-        
+
         # Using existing create_rectangle() function
         self._canvas.create_rectangle(
             x_min, y_min, x_max, y_max, fill=colour, tag=tag
         )
 
-    
+
     def draw_polyline(self, polyline, width=3, colour='white',
                       vertices = False, tag = 'polyline'):
         """
         Draw polyline (in screen coordinates) on the canvas
         """
-  
+
         self._canvas.create_line(
             polyline, fill=colour, width=width, tag=tag
         )
@@ -866,13 +852,13 @@ class Screen():
             for point in polyline:
                 self.draw_point(point, colour=colour, size=4, tag=tag)
 
-    
-    def draw_polygon(self, polygon, width=3, colour='white', vertices = False, 
+
+    def draw_polygon(self, polygon, width=3, colour='white', vertices = False,
                      stipple=False, boundary=False, tag = 'polyline'):
-        
+
         """
         Holes: Tkinter > 8.6
-        
+
         """
 
         if stipple is True:

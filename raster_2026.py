@@ -1,9 +1,14 @@
 
 import json
+import os
+import tempfile
 import tkinter
 
-import utilities_2026 as utilities
 import numpy as np
+import rasterio
+from PIL import Image
+
+import utilities_2026 as utilities
 
 class Raster():
     def __init__(self):
@@ -21,7 +26,7 @@ class Raster():
         }
         return json.dumps(report, indent=4)
 
-    # Properties 
+    # Properties
 
     def _get_epsg(self):
         return self._epsg
@@ -120,8 +125,6 @@ class Raster():
             filename: Path to GeoTIFF file
         """
         try:
-            import rasterio
-
             with rasterio.open(filename) as src:
                 # Extract affine transform coefficients
                 # rasterio Affine object is (a, b, c, d, e, f)
@@ -132,8 +135,8 @@ class Raster():
                 #   e = pixel height (typically negative for north-up rasters)
                 #   c = x_upper_left
                 #   f = y_upper_left
-                # Debug: print original transform
-                print(f"DEBUG: rasterio transform = {list(src.transform)}")
+
+
                 affine = [
                     src.transform[0],  # a: pixel width
                     src.transform[3],  # d: row rotation (column rotation is transform[3])
@@ -177,9 +180,6 @@ class Raster():
                   f'{self._world_file[5] + self._world_file[3]*self.shape[0]}')
             print(f'  Resolution: {abs(self._world_file[0])}m x {abs(self._world_file[3])}m per pixel')
 
-        except ImportError:
-            utilities.warning('rasterio not installed. Install with: pip install rasterio')
-            return
         except Exception as e:
             self._elevation_grid = None
             self._world_file = None
@@ -202,8 +202,6 @@ class Raster():
         else:
             self._world_file = world_file
 
-        # Load elevation grid using Pillow
-        from PIL import Image
         try:
             self._elevation_grid = np.array(Image.open(filename))
         except Exception as e:
@@ -250,11 +248,7 @@ class Raster():
         # Convert to PhotoImage
         # Note: tkinter.PhotoImage doesn't accept numpy arrays directly
         # Save to temporary file and load
-        from PIL import Image as PILImage
-        import tempfile
-        import os
-
-        img = PILImage.fromarray(rgb_array, mode='RGB')
+        img = Image.fromarray(rgb_array, mode='RGB')
 
         # Create temporary file
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
