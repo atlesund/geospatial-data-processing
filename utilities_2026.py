@@ -38,7 +38,7 @@ def warning(message, title='Warning'):
     tkinter.Tk().withdraw() # 
     tkinter.messagebox.showwarning(title, message)
 
-def epsg(prompt='EPSG code', title='GEO 2026'):
+def epsg(prompt='EPSG code (25833)', title='GEO 2026'):
     tkinter.Tk().withdraw()
     epsg = tkinter.simpledialog.askinteger(
         title=title, prompt=prompt
