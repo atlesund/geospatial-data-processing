@@ -129,13 +129,6 @@ class Raster():
                 # Extract affine transform coefficients
                 # rasterio Affine object is (a, b, c, d, e, f)
                 # World file format is [a, d, b, e, c, f]:
-                #   a = pixel width
-                #   d = row rotation (typically 0)
-                #   b = column rotation (typically 0)
-                #   e = pixel height (typically negative for north-up rasters)
-                #   c = x_upper_left
-                #   f = y_upper_left
-
 
                 affine = [
                     src.transform[0],  # a: pixel width
