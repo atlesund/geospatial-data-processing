@@ -194,24 +194,24 @@ def calculate_terrain_weight(elev1, elev2, edge_length,
     if not (math.isfinite(elev1) and math.isfinite(elev2)):
         raise ValueError("elevation values must be finite numbers")
 
-    # Calculate elevation difference (D-01)
+    # Calculate elevation difference ()
     elevation_diff = abs(elev2 - elev1)
 
-    # Calculate slope angle in degrees (D-02)
+    # Calculate slope angle in degrees
     slope_radians = math.atan(elevation_diff / edge_length)
     slope_degrees = math.degrees(slope_radians)
 
-    # Apply penalty if slope exceeds threshold (D-03/D-04)
+    # Apply penalty if slope exceeds threshold
     if slope_degrees <= threshold_degrees:
         penalty_factor = 1.0
     else:
-        # Linear scaling formula (D-05)
+        # Linear scaling formula
         penalty_factor = 1.0 + slope_multiplier * (slope_degrees - threshold_degrees)
 
         # Clamp penalty factor to max 100 to prevent DoS (T-3-07)
         penalty_factor = min(100.0, penalty_factor)
 
-    # Multiplicative weight calculation (D-06)
+    # Multiplicative weight calculation
     weight = edge_length * penalty_factor
 
     return (weight, slope_degrees, penalty_factor)
@@ -267,7 +267,7 @@ def load_water_features(bbox, target_epsg, timeout=30):
     """
     Query and project water features for water penalty routing.
 
-    Implements per D-01/D-02:
+    Implements per:
     - Query OpenStreetMap water features via osmnx.features_from_bbox()
     - Query at route planning time (dynamic, not pre-download)
     - Separate queries for lakes (polygons) and rivers (linestrings)
@@ -326,14 +326,6 @@ def load_water_features_tiled(bbox, target_epsg, grid_size=(2,2), timeout=30):
 
     Splits large bounding box into grid tiles, queries each tile separately,
     and merges results. Uses 2x2 grid by default (4 tiles).
-
-    Implements per D-01 through D-06:
-    - D-01: Split bbox into 2x2 grid tiles
-    - D-02: Query each tile sequentially using load_water_features
-    - D-03: Merge all tile results into single GeoDataFrame
-    - D-04: Fail entire query if any tile times out (prefer consistency)
-    - D-05: New function maintains backward compatibility
-    - D-06: Query full water features (no subset/fallback)
 
     Args:
         bbox: Tuple (west, south, east, north) in EPSG:4326 (lat/lon)
@@ -542,7 +534,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
     routing_net = RoutingNetwork()
     routing_net.epsg = raster.epsg
 
-    # Track node elevations for slope calculation per D-01/D-02
+    # Track node elevations for slope calculation
     node_elevations = {}  # node_id -> elevation in meters
 
     # Get raster extent and pixel size from world file
@@ -590,12 +582,12 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
 
             node_id_counter += 1
 
-    # Extract bounding box for water feature query per D-01/D-02
+    # Extract bounding box for water feature query
     x_coords = [coord[0] for coord in routing_net.node_coords.values()]
     y_coords = [coord[1] for coord in routing_net.node_coords.values()]
     bbox_local = (min(x_coords), min(y_coords), max(x_coords), max(y_coords))
 
-    # Query water features only if enabled per D-01/D-02
+    # Query water features only if enabled
     if enable_water_queries:
         print("Water queries enabled, querying OSM water features using tiled approach (2x2 grid)...")
         # Convert bbox from local CRS to EPSG:4326 for osmnx query
@@ -643,7 +635,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                 elev1 = node_elevations[node_id_counter]
                 elev2 = node_elevations[left_id]
 
-                # Calculate terrain-aware weight per D-01/D-02/D-03/D-04/D-05/D-06
+                # Calculate terrain-aware weight
                 if elev1 is not None and elev2 is not None:
                     terrain_weight, slope, terrain_penalty = calculate_terrain_weight(
                         elev1, elev2, mesh_spacing
@@ -662,7 +654,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
                 )
 
-                # Combine penalties multiplicatively per D-06
+                # Combine penalties multiplicatively
                 combined_penalty = terrain_penalty * water_penalty_factor
                 final_weight = mesh_spacing * combined_penalty
 
@@ -681,7 +673,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                 elev1 = node_elevations[node_id_counter]
                 elev2 = node_elevations[top_id]
 
-                # Calculate terrain-aware weight per D-01/D-02/D-03/D-04/D-05/D-06
+                # Calculate terrain-aware weight
                 if elev1 is not None and elev2 is not None:
                     terrain_weight, slope, terrain_penalty = calculate_terrain_weight(
                         elev1, elev2, mesh_spacing
@@ -700,7 +692,7 @@ def terrain_mesh_from_raster(raster, mesh_spacing=100, bbox=None, enable_water_q
                     lakes_gdf=lakes_gdf_idx, rivers_gdf=rivers_gdf_idx
                 )
 
-                # Combine penalties multiplicatively per D-06
+                # Combine penalties multiplicatively
                 combined_penalty = terrain_penalty * water_penalty_factor
                 final_weight = mesh_spacing * combined_penalty
 
