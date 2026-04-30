@@ -34,8 +34,6 @@ geoformats = {
     'tiff': ('TIFF Files', '*.tiff')
 }
 
-
-
 def warning(message, title='Warning'):
     tkinter.Tk().withdraw() # 
     tkinter.messagebox.showwarning(title, message)
